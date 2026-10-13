@@ -188,6 +188,8 @@ table.led{width:100%;border-collapse:collapse;min-width:900px;font-size:13px}
   <nav class="tabs" role="tablist">
     <button class="tab" role="tab" id="tab-pagos" aria-selected="true" data-t="pagos">Pagos y estado de cuenta</button>
     <button class="tab" role="tab" id="tab-dash" aria-selected="false" data-t="dash">Dashboard</button>
+    <button class="tab" role="tab" id="tab-ce" aria-selected="false" data-t="ce">Cuota Extraordinaria</button>
+    <button class="tab" role="tab" id="tab-bh" aria-selected="false" data-t="bh">Pagos a Asistencias Blue Hogar</button>
   </nav>
 
   <section class="filters" id="filters" aria-label="Filtros">
@@ -285,10 +287,990 @@ table.led{width:100%;border-collapse:collapse;min-width:900px;font-size:13px}
     </div>
   </main>
 
-</div>
-
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="data.js"></script>
+<script src="ce-data.js"></script>
+<script src="bh-data.js"></script>
+<script>if(window.Chart){Chart.defaults.font.family='IBM Plex Sans';}</script>
+
+<!-- CUOTA EXTRAORDINARIA -->
+<style>
+:root{--s5:#e87ba4;--s6:#008300;--s7:#7a5cd6}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--s5:#d55181;--s6:#008300;--s7:#9a82ea}}
+:root[data-theme="dark"]{--s5:#d55181;--s6:#008300;--s7:#9a82ea}
+.ce-sec{margin-top:26px}
+.ce-sec>h2{font-size:20px;font-weight:700}
+.ce-sec>.sub{color:var(--fg-3);font-size:13px;margin-top:3px;max-width:90ch}
+.ce-hero{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,7fr);gap:16px;margin-top:16px}
+@media (max-width:900px){.ce-hero{grid-template-columns:minmax(0,1fr)}}
+.ce-formula{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;font-family:var(--mono);font-size:15px;margin-top:12px}
+.ce-formula b{font-size:24px;font-weight:500;color:var(--leaf-ink)}
+.ce-formula span{color:var(--fg-3)}
+.ce-p{color:var(--fg-2);font-size:13.5px;margin:10px 0 0;max-width:70ch}
+.ce-tbl{width:100%;border-collapse:collapse;font-size:13px;margin-top:10px}
+.ce-tbl th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--fg-3);padding:7px 8px;border-bottom:1px solid var(--line-strong);font-weight:600;background:var(--surface-2)}
+.ce-tbl td{padding:7px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+.ce-tbl .r{text-align:right;font-family:var(--mono);font-variant-numeric:tabular-nums;white-space:nowrap}
+.ce-tbl tr.tot td{font-weight:600;border-top:2px solid var(--fg);border-bottom:0}
+.ce-tbl .pos{color:var(--good)} .ce-tbl .neg{color:var(--crit)}
+.ce-wrapx{overflow-x:auto}
+.ce-grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;margin-top:14px}
+@media (max-width:1000px){.ce-grid3{grid-template-columns:minmax(0,1fr)}}
+.ce-prog{height:8px;background:var(--surface-2);border-radius:999px;overflow:hidden;margin-top:10px}
+.ce-prog i{display:block;height:100%;background:var(--leaf)}
+.ce-pill{display:inline-block;font-size:11px;font-weight:600;padding:1px 8px;border-radius:999px;white-space:nowrap}
+.ce-pill.ok{background:var(--leaf-soft);color:var(--leaf-ink)}
+.ce-pill.pend{background:var(--warn-bg);color:var(--warn-fg)}
+.ce-pill.post{background:var(--surface-2);color:var(--fg-2);border:1px solid var(--line-strong)}
+.ce-fbar{display:flex;gap:10px;flex-wrap:wrap;align-items:end;margin-top:12px}
+.ce-fbar .f{min-width:140px}
+.ce-dots{display:flex;gap:4px}
+.ce-dots i{width:14px;height:14px;border-radius:4px;background:var(--surface-2);border:1px solid var(--line-strong);display:inline-block}
+.ce-dots i.on{background:var(--sev-hi);border-color:var(--sev-hi)}
+.ce-close{margin-top:28px;background:var(--surface);border:1px solid var(--line);border-left:4px solid var(--leaf);border-radius:12px;padding:20px 22px}
+.ce-close h2{font-size:19px}
+.ce-close p{color:var(--fg-2);max-width:80ch;margin:10px 0 0;font-size:14px}
+.ce-close ul{margin:10px 0 0;padding-left:18px;color:var(--fg-2);font-size:14px;display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:4px 24px}
+.ce-gap{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;margin-top:12px}
+.ce-gap div{background:var(--surface-2);border-radius:8px;padding:10px 12px;font-size:12.5px;color:var(--fg-2)}
+.ce-gap b{display:block;font-family:var(--mono);font-size:17px;color:var(--fg);font-weight:500}
+</style>
+
+<section id="v-ce" hidden>
+  <!-- 1. ACUERDO -->
+  <div class="ce-hero">
+    <div class="panel">
+      <div class="eyebrow">Acuerdo de asamblea extraordinaria</div>
+      <h2 style="margin-top:4px">Cuota extraordinaria para correctivos</h2>
+      <div class="ce-formula"><span>S/</span><b>212.50</b><span>× 198 dptos. × 4 meses =</span><b>S/ 168,300.00</b></div>
+      <p class="ce-p">Se aprobó una cuota de S/ 212.50 por departamento, de mayo a agosto de 2026, cobrada en el recibo de mantenimiento, para atender los correctivos críticos del condominio: bombas y pozos sépticos, ascensores, cámaras y pozos a tierra.</p>
+      <table class="ce-tbl" id="ceDptos"></table>
+      <p class="note">Fuente: <a href="https://cppjuntadirectiva-2026.github.io/correctivos-paseo-del-parque/" target="_blank" rel="noopener" style="color:var(--leaf-ink)">presentación de la asamblea de correctivos</a>.</p>
+    </div>
+    <div class="panel">
+      <h2>Lo que se presupuestó y lo que realmente costó</h2>
+      <div class="sub">Presupuesto de la asamblea (con IGV) frente a lo pagado con la cuota extraordinaria al 30/09/2026 y lo que falta pagar para terminar.</div>
+      <div class="ce-wrapx"><table class="ce-tbl" id="cePresu"></table></div>
+      <p class="note" id="cePresuNote"></p>
+    </div>
+  </div>
+  <div class="kpis" id="ceKpis"></div>
+
+  <!-- 2. RECAUDACION -->
+  <div class="ce-sec">
+    <h2>Recaudación por torre y mes</h2>
+    <div class="sub">Lo emitido en los recibos frente a lo cobrado, según el reporte de deuda de cuota extraordinaria al 30/09/2026.</div>
+    <div class="panel" style="margin-top:12px"><div class="ce-wrapx"><table class="ce-tbl" id="ceRecaud"></table></div></div>
+  </div>
+
+  <!-- 3. DETALLE -->
+  <div class="ce-sec">
+    <div class="ledger-h" style="margin-top:0">
+      <div><h2>Detalle de gastos con la cuota extraordinaria</h2><div class="sub" id="ceLedSub" style="color:var(--fg-3);font-size:12.5px"></div></div>
+      <div class="seg" role="group" aria-label="Agrupar gastos por">
+        <button type="button" data-ceg="c" aria-pressed="true">Por concepto</button>
+        <button type="button" data-ceg="m" aria-pressed="false">Por mes</button>
+        <button type="button" data-ceg="t" aria-pressed="false">Por torre</button>
+        <button type="button" data-ceg="none" aria-pressed="false">Cronológico</button>
+      </div>
+    </div>
+    <div class="ce-fbar">
+      <div class="f"><label for="ceDesde">Desde</label><input type="date" id="ceDesde" min="2026-05-01" max="2026-09-30" value="2026-05-01"></div>
+      <div class="f"><label for="ceHasta">Hasta</label><input type="date" id="ceHasta" min="2026-05-01" max="2026-09-30" value="2026-09-30"></div>
+      <div class="f"><label for="ceCon">Concepto</label><select id="ceCon"><option value="">Todos</option></select></div>
+      <div class="f"><label for="ceTorre">Torre</label><select id="ceTorre"><option value="">Todas</option><option value="A">Torre A</option><option value="B">Torre B</option><option value="C">Torre C</option><option value="A/B/C">Áreas comunes (A/B/C)</option></select></div>
+      <div class="f" style="flex:1 1 220px"><label for="ceQ">Buscar</label><input type="search" id="ceQ" placeholder="Trabajo, proveedor, N° de operación…"></div>
+      <button class="link-btn" type="button" id="ceReset">Limpiar filtros</button>
+    </div>
+    <div class="tbl-wrap"><table class="led" id="ceLed"></table></div>
+  </div>
+
+  <!-- 4. CRONOGRAMAS -->
+  <div class="ce-sec">
+    <h2>Cronogramas de pago</h2>
+    <div class="sub">Los manifold se ejecutaron en este orden: Torre C, Torre B y Torre A. La fecha real de pago sale del estado de cuenta BCP; la cuota 3 del manifold A se pagó el 02/10, después del corte de este informe.</div>
+    <div class="ce-grid3" id="ceCrono"></div>
+  </div>
+
+  <!-- 5. GRAFICO MENSUAL -->
+  <div class="ce-sec panel">
+    <div class="ch-h">
+      <div><h2>Cómo se fue pagando cada concepto</h2><div class="sub" id="ceChSub">Pagos por mes según la fecha del banco. Cada color es un concepto.</div></div>
+      <div class="seg" role="group" aria-label="Vista del gráfico"><button type="button" data-cev="mes" aria-pressed="true">Por mes</button><button type="button" data-cev="acu" aria-pressed="false">Acumulado vs. recaudado</button></div>
+    </div>
+    <div class="ce-fbar">
+      <div class="chips" aria-label="Meses del gráfico" id="ceChMeses"></div>
+      <div class="f" style="min-width:180px"><label for="ceChCon">Concepto</label><select id="ceChCon"><option value="">Todos</option></select></div>
+      <button class="link-btn" type="button" id="ceChReset">Limpiar filtros</button>
+    </div>
+    <div class="legend" id="ceChLeg"></div>
+    <div class="ch-box"><canvas id="ceChart" aria-label="Pagos con cuota extraordinaria por mes y concepto"></canvas></div>
+    <div class="note" id="ceChNote"></div>
+  </div>
+
+  <!-- 6. BALANCE -->
+  <div class="ce-sec panel">
+    <h2>Lo acordado, lo cobrado, lo pagado y lo que falta</h2>
+    <div class="sub">Tres barras con la misma escala. La línea vertical marca los S/ 168,300 acordados.</div>
+    <div class="legend" id="ceBalLeg"></div>
+    <div class="ch-box" style="height:260px"><canvas id="ceBal" aria-label="Balance de la cuota extraordinaria"></canvas></div>
+    <div class="ce-gap" id="ceGap"></div>
+  </div>
+
+  <!-- 7. MOROSOS -->
+  <div class="ce-sec">
+    <h2>Morosidad de la cuota extraordinaria al 30/09/2026</h2>
+    <div class="sub" id="ceMorSub"></div>
+    <div class="ce-fbar">
+      <div class="f"><label for="ceMT">Torre</label><select id="ceMT"><option value="">Todas</option><option value="A">Torre A</option><option value="B">Torre B</option><option value="C">Torre C</option></select></div>
+      <div class="f"><label for="ceMM">Debe el mes de</label><select id="ceMM"><option value="">Cualquier mes</option><option value="0">Mayo</option><option value="1">Junio</option><option value="2">Julio</option><option value="3">Agosto</option></select></div>
+      <div class="f"><label for="ceMS">Ordenar</label><select id="ceMS"><option value="desc">Mayor deuda primero</option><option value="asc">Menor deuda primero</option><option value="dpto">Por departamento</option></select></div>
+      <button class="link-btn" type="button" id="ceMReset">Limpiar filtros</button>
+    </div>
+    <div class="grid2" style="grid-template-columns:minmax(0,7fr) minmax(0,5fr)">
+      <div class="tbl-wrap" style="margin-top:0"><table class="led" id="ceMor" style="min-width:560px"></table></div>
+      <div class="panel"><h2>Deuda por torre y mes</h2><div class="sub">Cuotas impagas de S/ 212.50.</div><div class="ce-wrapx"><table class="ce-tbl" id="ceMorT"></table></div></div>
+    </div>
+  </div>
+
+  <!-- 8. CIERRE -->
+  <div class="ce-close">
+    <h2>¿Por qué todavía no se culminan todos los trabajos?</h2>
+    <p>La cuota extraordinaria se calculó para cubrir los correctivos identificados en abril. Al 30 de setiembre se ha cobrado el <b id="cePct1"></b> de lo acordado: <b id="ceMor1"></b> siguen pendientes por morosidad. En el camino, el costo real de los trabajos superó lo estimado, sobre todo en ascensores, y aparecieron urgencias que no podían esperar.</p>
+    <p>Con los mismos recursos, la Junta Directiva tuvo que priorizar cada mes:</p>
+    <ul>
+      <li>Servicios básicos (luz y agua), que no admiten atraso.</li>
+      <li>El pago a la empresa administradora.</li>
+      <li>Sumideros y pozos que colapsan.</li>
+      <li>Tableros eléctricos con fallas.</li>
+      <li>Ascensores averiados.</li>
+      <li>Puertas automáticas que dejan de funcionar.</li>
+    </ul>
+    <p>Muchas veces lo urgente tuvo que ir antes que lo importante. Para culminar los trabajos pendientes (<b id="cePend1"></b>) es indispensable que los departamentos con deuda regularicen su cuota extraordinaria. Solo con esa recaudación se podrá cerrar la brecha y terminar lo que se acordó en asamblea.</p>
+  </div>
+</section>
+
+<script>
+(function(){
+const D=window.CPP_DATA, C=window.CE_DATA; if(!D||!C) return;
+const NF=new Intl.NumberFormat('es-PE',{minimumFractionDigits:2,maximumFractionDigits:2});
+const S=v=>'S/ '+NF.format(v);
+const $=id=>document.getElementById(id);
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const fdate=d=>d.slice(8,10)+'/'+d.slice(5,7)+'/'+d.slice(0,4);
+const norm=s=>String(s||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase();
+const css=v=>getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+const MESL=['','Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Setiembre','Octubre','Noviembre'];
+const RID=Object.fromEntries(D.recs.map(r=>[r.id,r]));
+const CON=Object.fromEntries(C.conceptos.map(c=>[c.id,c]));
+const COLV={pozos:'--s1',asc:'--s2',tierra:'--s3',tabl:'--s4',cam:'--s5',ext:'--s6',cont:'--s7'};
+const G=C.gastos.map(g=>{const r=RID[g.id];return Object.assign({},r,{ce:g.c,torre:g.t,dce:g.d})}).sort((a,b)=>a.f<b.f?-1:a.f>b.f?1:a.id-b.id);
+const ICON_DOC='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>';
+const ICON_EXT='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 3h7v7M10 14 21 3M21 14v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5"/></svg>';
+const ICON_WA='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.4 8.4 0 0 1-12.4 7.4L3 21l2.1-5.4A8.4 8.4 0 1 1 21 11.5z"/></svg>';
+
+// ---------- totals ----------
+const esperado=198*C.cuota*4;
+const morT={A:[0,0,0,0],B:[0,0,0,0],C:[0,0,0,0]};
+C.morosos.forEach(([u,m])=>m.forEach((x,i)=>{if(x)morT[u[0]][i]+=C.cuota}));
+const morosidad=Object.values(morT).flat().reduce((a,b)=>a+b,0);
+const recaudado=esperado-morosidad;
+const pagado=G.reduce((a,r)=>a+r.amt,0);
+const saldo=recaudado-pagado;
+const pendTot=C.pendientes.reduce((a,p)=>a+p.m,0);
+const costoTotal=pagado+pendTot;
+
+// ---------- 1. acuerdo ----------
+$('ceDptos').innerHTML='<thead><tr><th>Torre</th><th class="r">Dptos.</th><th class="r">Por mes</th><th class="r">4 meses</th></tr></thead><tbody>'+
+  Object.entries(C.dptos).map(([t,n])=>`<tr><td>Torre ${t}</td><td class="r">${n}</td><td class="r">${NF.format(n*C.cuota)}</td><td class="r">${NF.format(n*C.cuota*4)}</td></tr>`).join('')+
+  `<tr class="tot"><td>Total</td><td class="r">198</td><td class="r">${NF.format(198*C.cuota)}</td><td class="r">${NF.format(esperado)}</td></tr></tbody>`;
+function presu(){
+  let h='<thead><tr><th>Concepto</th><th class="r">Presupuesto asamblea</th><th class="r">Pagado</th><th class="r">Pendiente</th><th class="r">Costo real</th><th class="r">Diferencia</th></tr></thead><tbody>';
+  let tp=0,tg=0,tpe=0;
+  C.conceptos.forEach(c=>{
+    const p=C.presupuesto[c.id]||0, g=G.filter(r=>r.ce===c.id).reduce((a,r)=>a+r.amt,0), pe=C.pendientes.filter(x=>x.c===c.id).reduce((a,x)=>a+x.m,0), real=g+pe, df=real-p;
+    tp+=p;tg+=g;tpe+=pe;
+    h+=`<tr><td><span class="ce-sw" style="display:inline-block;width:9px;height:9px;border-radius:2px;background:var(${COLV[c.id]});margin-right:7px"></span>${esc(c.n)}${p?'':' <span class="ce-pill post">No presupuestado</span>'}</td><td class="r">${p?NF.format(p):'—'}</td><td class="r">${NF.format(g)}</td><td class="r">${pe?NF.format(pe):'—'}</td><td class="r">${NF.format(real)}</td><td class="r ${df>0?'neg':'pos'}">${df>0?'+':''}${NF.format(df)}</td></tr>`;
+  });
+  const real=tg+tpe;
+  h+=`<tr class="tot"><td>Total</td><td class="r">${NF.format(tp)}</td><td class="r">${NF.format(tg)}</td><td class="r">${NF.format(tpe)}</td><td class="r">${NF.format(real)}</td><td class="r ${real>tp?'neg':'pos'}">${real>tp?'+':''}${NF.format(real-tp)}</td></tr></tbody>`;
+  $('cePresu').innerHTML=h;
+  $('cePresuNote').textContent=`Diferencia en rojo = costó más de lo estimado. Ascensores pasó de S/ 10,299.04 a ${S(G.filter(r=>r.ce==='asc').reduce((a,r)=>a+r.amt,0)+C.pendientes.filter(x=>x.c==='asc').reduce((a,x)=>a+x.m,0))}: el correctivo integral de la Torre B (S/ 14,600) y los de las Torres A y C no estaban en la estimación inicial. En pozos a tierra se gastó menos de lo previsto. Tableros y extintores fueron urgencias no presupuestadas.`;
+}
+presu();
+$('ceKpis').innerHTML=[
+  ['Acordado',S(esperado),'198 dptos. × 4 cuotas de S/ 212.50'],
+  ['Recaudado',S(recaudado),`${(recaudado/esperado*100).toFixed(1)}% de lo acordado`],
+  ['Pagado en correctivos',S(pagado),`${G.length} pagos, todos conciliados con el BCP`],
+  ['Saldo de la cuota',S(saldo),'Recaudado menos pagado'],
+  ['Pendiente de culminar',S(pendTot),'Trabajos contratados o cotizados sin pagar'],
+  ['Morosidad',S(morosidad),`${C.morosos.length} dptos. · ${C.morosos.reduce((a,m)=>a+m[1].reduce((x,y)=>x+y,0),0)} cuotas impagas`]
+].map(k=>`<div class="kpi"><div class="l">${k[0]}</div><div class="v">${k[1]}</div><div class="s">${k[2]}</div></div>`).join('');
+
+// ---------- 2. recaudacion ----------
+(function(){
+  const meses=['Mayo','Junio','Julio','Agosto'];
+  let h='<thead><tr><th>Torre</th>'+meses.map(m=>`<th class="r">${m}</th>`).join('')+'<th class="r">Recaudado</th><th class="r">Esperado</th><th class="r">Avance</th></tr></thead><tbody>';
+  let colT=[0,0,0,0];
+  Object.entries(C.dptos).forEach(([t,n])=>{
+    const e=n*C.cuota, rec=morT[t].map(x=>e-x); rec.forEach((v,i)=>colT[i]+=v);
+    const tr=rec.reduce((a,b)=>a+b,0);
+    h+=`<tr><td>Torre ${t}</td>${rec.map(v=>`<td class="r">${NF.format(v)}</td>`).join('')}<td class="r">${NF.format(tr)}</td><td class="r">${NF.format(e*4)}</td><td class="r">${(tr/(e*4)*100).toFixed(1)}%</td></tr>`;
+  });
+  h+=`<tr class="tot"><td>Total</td>${colT.map(v=>`<td class="r">${NF.format(v)}</td>`).join('')}<td class="r">${NF.format(recaudado)}</td><td class="r">${NF.format(esperado)}</td><td class="r">${(recaudado/esperado*100).toFixed(1)}%</td></tr></tbody>`;
+  $('ceRecaud').innerHTML=h;
+})();
+
+// ---------- 3. ledger ----------
+C.conceptos.forEach(c=>{['ceCon','ceChCon'].forEach(id=>{const o=document.createElement('option');o.value=c.id;o.textContent=c.n;$(id).appendChild(o)})});
+const st={desde:'2026-05-01',hasta:'2026-09-30',con:'',torre:'',q:'',g:'c',closed:new Set(),chM:new Set(['2026-05','2026-06','2026-07','2026-08','2026-09']),chCon:'',view:'mes',ms:'desc',mt:'',mm:''};
+function links(r){
+  let h=(r.wa||[]).map(([t,u])=>`<a class="wa" href="${esc(u)}" target="_blank" rel="noopener">${ICON_WA}${esc(t)}</a>`).join('');
+  h+=(r.links||[]).map(([t,u])=>`<a href="${esc(u)}" target="_blank" rel="noopener">${u.startsWith('http')?ICON_EXT:ICON_DOC}${esc(t)}</a>`).join('');
+  h+=`<a href="${esc(r.eecc)}" target="_blank" rel="noopener">${ICON_DOC}EECC ${r.acc==='CTE'?'cta. cte.':'ahorros'} ${MESL[+r.f.slice(5,7)].slice(0,3)}</a>`;
+  return `<div class="lk">${h}</div>`;
+}
+function fl(){const q=norm(st.q);return G.filter(r=>r.f>=st.desde&&r.f<=st.hasta&&(!st.con||r.ce===st.con)&&(!st.torre||r.torre===st.torre)&&(!q||norm([r.dce,r.desc,r.prov,r.titular,r.op,CON[r.ce].n,'torre '+r.torre,r.amt.toFixed(2)].join(' ')).includes(q)))}
+function row(r){return `<tr><td class="dt">${fdate(r.f)}</td><td><div class="d1">${esc(r.dce)}${r.wa&&r.wa.length?' <span class="tag ok">✓ Validado en chat</span>':''}</div><div class="d2">${esc(r.glosa)}${r.op?' · Op. '+esc(r.op):''}</div></td><td>${st.g!=='c'?`<div style="font-size:12px;color:var(--fg-2)">${esc(CON[r.ce].n)}</div>`:''}${r.torre==='A/B/C'?'Áreas comunes':'Torre '+r.torre}</td><td>${esc(r.prov)}${r.titular?`<div class="tit">Cuenta destino: ${esc(r.titular)}</div>`:''}</td><td><span class="acc ${r.acc}">${r.acc==='CTE'?'Corriente':'Ahorros'}</span></td><td class="amt">${NF.format(r.amt)}</td><td>${links(r)}</td></tr>`}
+function ledger(){
+  const rows=fl(), total=rows.reduce((a,r)=>a+r.amt,0);
+  $('ceLedSub').textContent=`${rows.length} pagos · ${S(total)} · ${fdate(st.desde)} al ${fdate(st.hasta)}`;
+  const head='<thead><tr><th style="width:96px">Fecha</th><th>Trabajo / descripción</th><th style="width:130px">Torre</th><th style="width:210px">Proveedor / titular</th><th style="width:100px">Cuenta</th><th class="amt" style="width:110px">Monto S/</th><th style="width:190px">Soporte</th></tr></thead>';
+  if(!rows.length){$('ceLed').innerHTML=head+'<tbody><tr><td colspan="7" class="empty">No hay pagos con estos filtros. Prueba ampliando las fechas o limpiando los filtros.</td></tr></tbody>';return}
+  let body='';
+  if(st.g==='none') body=rows.map(row).join('');
+  else{
+    const key=r=>st.g==='c'?r.ce:st.g==='m'?r.f.slice(0,7):r.torre;
+    const lab=k=>st.g==='c'?CON[k].n:st.g==='m'?MESL[+k.slice(5,7)]+' 2026':(k==='A/B/C'?'Áreas comunes (A/B/C)':'Torre '+k);
+    const gr=new Map(); rows.forEach(r=>{const k=key(r);if(!gr.has(k))gr.set(k,[]);gr.get(k).push(r)});
+    let keys=[...gr.keys()]; if(st.g==='c') keys.sort((a,b)=>C.conceptos.findIndex(c=>c.id===a)-C.conceptos.findIndex(c=>c.id===b)); else keys.sort();
+    keys.forEach(k=>{const g=gr.get(k),sub=g.reduce((a,r)=>a+r.amt,0),gid='ce'+st.g+k,cl=st.closed.has(gid);
+      body+=`<tr class="grp${cl?' closed':''}" data-gid="${esc(gid)}" tabindex="0"><td colspan="5"><span class="car">▾</span> ${esc(lab(k))}<span class="cnt">${g.length} pagos · ${(sub/total*100).toFixed(1)}%</span></td><td class="amt num">${NF.format(sub)}</td><td></td></tr>`;
+      if(!cl){body+=g.map(row).join('')+`<tr class="subt"><td colspan="5" style="text-align:right">Subtotal ${esc(lab(k))}</td><td class="amt num">${NF.format(sub)}</td><td></td></tr>`}});
+  }
+  body+=`<tr class="grand"><td colspan="5" style="text-align:right">TOTAL PAGADO CON CUOTA EXTRAORDINARIA</td><td class="amt num">${NF.format(total)}</td><td></td></tr>`;
+  $('ceLed').innerHTML=head+'<tbody>'+body+'</tbody>';
+  $('ceLed').querySelectorAll('tr.grp').forEach(tr=>{const f=()=>{const g=tr.dataset.gid;st.closed.has(g)?st.closed.delete(g):st.closed.add(g);ledger()};tr.onclick=f;tr.onkeydown=e=>{if(e.key==='Enter')f()}});
+}
+$('ceDesde').onchange=()=>{st.desde=$('ceDesde').value||'2026-05-01';ledger()};
+$('ceHasta').onchange=()=>{st.hasta=$('ceHasta').value||'2026-09-30';ledger()};
+$('ceCon').onchange=()=>{st.con=$('ceCon').value;ledger()};
+$('ceTorre').onchange=()=>{st.torre=$('ceTorre').value;ledger()};
+let qt;$('ceQ').oninput=()=>{clearTimeout(qt);qt=setTimeout(()=>{st.q=$('ceQ').value;ledger()},180)};
+$('ceReset').onclick=()=>{Object.assign(st,{desde:'2026-05-01',hasta:'2026-09-30',con:'',torre:'',q:''});$('ceDesde').value=st.desde;$('ceHasta').value=st.hasta;['ceCon','ceTorre','ceQ'].forEach(i=>$(i).value='');ledger()};
+document.querySelectorAll('[data-ceg]').forEach(b=>b.onclick=()=>{st.g=b.dataset.ceg;document.querySelectorAll('[data-ceg]').forEach(x=>x.setAttribute('aria-pressed',x===b));ledger()});
+
+// ---------- 4. cronogramas ----------
+$('ceCrono').innerHTML=C.crono.map(c=>{
+  const paid=c.items.filter(i=>i[3]).reduce((a,i)=>a+i[2],0);
+  const det=c.det.length?`<details style="margin-top:8px"><summary style="cursor:pointer;font-size:12.5px;color:var(--leaf-ink)">Ver detalle del presupuesto</summary><table class="ce-tbl">${c.det.map(x=>`<tr><td>${esc(x[0])}</td><td class="r">${NF.format(x[1])}</td></tr>`).join('')}<tr class="tot"><td>Total</td><td class="r">${NF.format(c.total)}</td></tr></table></details>`:'';
+  return `<div class="panel"><h2>${esc(c.n)}</h2><div class="sub">Total ${S(c.total)} · pagado ${S(paid)} (${(paid/c.total*100).toFixed(0)}%)</div><div class="ce-prog"><i style="width:${(paid/c.total*100).toFixed(1)}%"></i></div>
+  <div class="ce-wrapx"><table class="ce-tbl"><thead><tr><th>Cuota</th><th>Programada</th><th class="r">Monto</th><th>Pago real</th></tr></thead><tbody>${c.items.map(i=>{const r=i[3]?RID[i[3]]:null;const post=!r&&i[1]<='2026-10-02'&&c.n.includes('Torre A')&&i[0]==='Cuota 3';
+    return `<tr><td style="white-space:nowrap">${esc(i[0])}</td><td class="num" style="font-family:var(--mono);font-size:12px">${fdate(i[1])}</td><td class="r">${NF.format(i[2])}</td><td>${r?`<span class="ce-pill ok">${fdate(r.f)}</span>`:post?'<span class="ce-pill post">Pagada 02/10</span>':'<span class="ce-pill pend">Pendiente</span>'}</td></tr>`}).join('')}
+  <tr class="tot"><td>Total</td><td></td><td class="r">${NF.format(c.total)}</td><td></td></tr></tbody></table></div>${det}</div>`}).join('');
+
+// ---------- 5. chart ----------
+let chart, bal;
+const MON=['2026-05','2026-06','2026-07','2026-08','2026-09'];
+$('ceChMeses').innerHTML=MON.map(m=>`<button class="chip" type="button" data-m="${m}" aria-pressed="true">${MESL[+m.slice(5)].slice(0,3)}</button>`).join('');
+const chipStyle=()=>document.querySelectorAll('#ceChMeses .chip').forEach(b=>{const on=st.chM.has(b.dataset.m);b.setAttribute('aria-pressed',on);b.style.background=on?'var(--leaf-soft)':'var(--surface)';b.style.color=on?'var(--leaf-ink)':'var(--fg-2)';b.style.fontWeight=on?'600':'400'});
+document.querySelectorAll('#ceChMeses .chip').forEach(b=>b.onclick=()=>{const m=b.dataset.m;if(st.chM.has(m)&&st.chM.size>1)st.chM.delete(m);else st.chM.add(m);drawChart()});
+$('ceChCon').onchange=()=>{st.chCon=$('ceChCon').value;drawChart()};
+$('ceChReset').onclick=()=>{st.chM=new Set(MON);st.chCon='';$('ceChCon').value='';drawChart()};
+document.querySelectorAll('[data-cev]').forEach(b=>b.onclick=()=>{st.view=b.dataset.cev;document.querySelectorAll('[data-cev]').forEach(x=>x.setAttribute('aria-pressed',x===b));drawChart()});
+function opts(extra){
+  const fg2=css('--fg-2'),line=css('--line');
+  return Object.assign({responsive:true,maintainAspectRatio:false,animation:{duration:250},interaction:{mode:'index',intersect:false},
+    plugins:{legend:{display:false},tooltip:{backgroundColor:css('--surface'),titleColor:css('--fg'),bodyColor:css('--fg-2'),borderColor:css('--line-strong'),borderWidth:1,padding:10,callbacks:{label:c=>`${c.dataset.label}: ${S(c.parsed.y??c.parsed.x)}`}}},
+    scales:{x:{grid:{display:false},ticks:{color:fg2,font:{family:'IBM Plex Sans',size:11}},border:{color:line}},y:{grid:{color:line},border:{display:false},ticks:{color:fg2,font:{family:'IBM Plex Mono',size:11},callback:v=>NF.format(v).replace('.00','')},beginAtZero:true}}},extra||{});
+}
+function drawChart(){
+  chipStyle();
+  const months=MON.filter(m=>st.chM.has(m)), cons=C.conceptos.filter(c=>!st.chCon||c.id===st.chCon);
+  const labels=months.map(m=>MESL[+m.slice(5)]);
+  if(chart) chart.destroy();
+  if(st.view==='mes'){
+    const ds=cons.map(c=>({label:c.n,data:months.map(m=>+G.filter(r=>r.ce===c.id&&r.f.startsWith(m)).reduce((a,r)=>a+r.amt,0).toFixed(2)),backgroundColor:css(COLV[c.id]),borderColor:css('--surface'),borderWidth:{top:2},borderSkipped:false,maxBarThickness:56}));
+    const o=opts(); o.scales.x.stacked=true;o.scales.y.stacked=true;
+    o.plugins.tooltip.callbacks.footer=it=>'Total del mes: '+S(it.reduce((a,i)=>a+i.parsed.y,0));
+    o.plugins.tooltip.filter=i=>i.parsed.y>0;
+    chart=new Chart($('ceChart'),{type:'bar',data:{labels,datasets:ds},options:o});
+    $('ceChLeg').innerHTML=cons.map(c=>`<span><i style="background:var(${COLV[c.id]})"></i>${esc(c.n)}</span>`).join('');
+    const tot=months.reduce((a,m)=>a+G.filter(r=>r.f.startsWith(m)&&(!st.chCon||r.ce===st.chCon)).reduce((x,r)=>x+r.amt,0),0);
+    $('ceChNote').textContent=`Total en la selección: ${S(tot)}. Los pagos de agosto y setiembre corresponden sobre todo a los manifold de las Torres B y A y a los correctivos de ascensores.`;
+  } else {
+    const recM=[0,1,2,3].map(i=>Object.values(morT).reduce((a,t)=>a+(C.dptos[Object.keys(morT).find(k=>morT[k]===t)]*C.cuota-t[i]),0));
+    let ra=0,pa=0; const R1=[],P1=[];
+    MON.forEach((m,i)=>{ra+=i<4?recM[i]:0; pa+=G.filter(r=>r.f.startsWith(m)&&(!st.chCon||r.ce===st.chCon)).reduce((a,r)=>a+r.amt,0); if(st.chM.has(m)){R1.push(+ra.toFixed(2));P1.push(+pa.toFixed(2))}});
+    const ds=[{label:'Recaudado acumulado',data:R1,borderColor:css('--s1'),backgroundColor:css('--s1')+'33',fill:true,borderWidth:2,pointRadius:4,tension:.2},
+              {label:st.chCon?'Pagado acumulado – '+CON[st.chCon].n:'Pagado acumulado',data:P1,borderColor:css('--s2'),backgroundColor:css('--s2'),borderWidth:2,pointRadius:4,tension:.2}];
+    const o=opts();
+    chart=new Chart($('ceChart'),{type:'line',data:{labels,datasets:ds},options:o});
+    $('ceChLeg').innerHTML=`<span><i style="background:var(--s1)"></i>Recaudado acumulado</span><span><i style="background:var(--s2)"></i>Pagado acumulado</span>`;
+    $('ceChNote').textContent='La recaudación se cuenta por el mes de la cuota emitida (mayo a agosto). Cuando la línea naranja se acerca a la azul, casi todo lo cobrado ya se usó.';
+  }
+}
+// ---------- 6. balance ----------
+function drawBal(){
+  if(bal) bal.destroy();
+  const L=['Recaudación','Uso de lo recaudado','Costo de los trabajos'];
+  const mk=(label,v,col)=>({label,data:v,backgroundColor:css(col),borderColor:css('--surface'),borderWidth:{right:2},borderSkipped:false,barThickness:34});
+  const ds=[mk('Recaudado',[recaudado,0,0],'--s1'),mk('Morosidad',[morosidad,0,0],'--sev-hi'),
+    mk('Pagado',[0,pagado,pagado],'--s3'),mk('Saldo disponible',[0,saldo,0],'--r2'),mk('Pendiente de culminar',[0,0,pendTot],'--s2')];
+  const line={id:'ceRef',afterDatasetsDraw(c){const x=c.scales.x.getPixelForValue(esperado),a=c.chartArea,g=c.ctx;g.save();g.strokeStyle=css('--fg');g.setLineDash([5,4]);g.lineWidth=1.5;g.beginPath();g.moveTo(x,a.top-4);g.lineTo(x,a.bottom);g.stroke();g.setLineDash([]);g.fillStyle=css('--fg');g.font='11px IBM Plex Sans, sans-serif';g.textAlign='right';g.fillText('Acordado S/ 168,300',x-6,a.top+8);g.restore()}};
+  const o=opts({indexAxis:'y'}); o.interaction={mode:'nearest',axis:'y',intersect:true};
+  o.scales={x:{stacked:true,max:Math.ceil(Math.max(costoTotal,esperado)/20000)*20000,grid:{color:css('--line')},border:{display:false},ticks:{color:css('--fg-2'),font:{family:'IBM Plex Mono',size:11},callback:v=>NF.format(v).replace('.00','')}},y:{stacked:true,grid:{display:false},ticks:{color:css('--fg'),font:{family:'IBM Plex Sans',size:12}}}};
+  o.plugins.tooltip.callbacks={label:c=>c.parsed.x?`${c.dataset.label}: ${S(c.parsed.x)}`:null};
+  o.plugins.tooltip.filter=i=>i.parsed.x>0;
+  bal=new Chart($('ceBal'),{type:'bar',data:{labels:L,datasets:ds},options:o,plugins:[line]});
+  $('ceBalLeg').innerHTML=[['--s1','Recaudado'],['--sev-hi','Morosidad'],['--s3','Pagado'],['--r2','Saldo disponible'],['--s2','Pendiente de culminar']].map(([c,n])=>`<span><i style="background:var(${c})"></i>${n}</span>`).join('');
+  const brecha=costoTotal-esperado, falta=pendTot-saldo;
+  $('ceGap').innerHTML=`<div><b>${S(costoTotal)}</b>Costo total de los trabajos (pagado + pendiente)</div><div><b>${S(falta)}</b>Lo que falta para terminar, descontando el saldo disponible</div><div><b>${S(morosidad)}</b>Lo que entraría si los morosos se ponen al día</div><div><b>${S(brecha)}</b>Brecha que quedaría aun con 100% de cobranza</div>`;
+}
+// ---------- 7. morosos ----------
+function mor(){
+  let rows=C.morosos.map(([u,m])=>({u,t:u[0],m,n:m.reduce((a,b)=>a+b,0)}));
+  rows=rows.filter(r=>(!st.mt||r.t===st.mt)&&(st.mm===''||r.m[+st.mm]));
+  rows.sort((a,b)=>st.ms==='dpto'?a.u.localeCompare(b.u):st.ms==='asc'?a.n-b.n||a.u.localeCompare(b.u):b.n-a.n||a.u.localeCompare(b.u));
+  const tot=rows.reduce((a,r)=>a+r.n*C.cuota,0);
+  $('ceMorSub').textContent=`${C.morosos.length} departamentos deben ${S(morosidad)}. Con los filtros: ${rows.length} dptos., ${S(tot)}.`;
+  $('ceMor').innerHTML='<thead><tr><th>Dpto.</th><th>Torre</th><th>May · Jun · Jul · Ago</th><th class="amt">Cuotas</th><th class="amt">Deuda S/</th></tr></thead><tbody>'+
+    (rows.length?rows.map(r=>`<tr><td class="num" style="font-family:var(--mono)">${r.u}</td><td>Torre ${r.t}</td><td><span class="ce-dots" title="${r.m.map((x,i)=>x?['Mayo','Junio','Julio','Agosto'][i]:'').filter(Boolean).join(', ')}">${r.m.map(x=>`<i class="${x?'on':''}"></i>`).join('')}</span></td><td class="amt">${r.n}</td><td class="amt">${NF.format(r.n*C.cuota)}</td></tr>`).join(''):'<tr><td colspan="5" class="empty">Ningún departamento cumple estos filtros.</td></tr>')+
+    `<tr class="grand"><td colspan="3" style="text-align:right">Total filtrado</td><td class="amt">${rows.reduce((a,r)=>a+r.n,0)}</td><td class="amt">${NF.format(tot)}</td></tr></tbody>`;
+  const ts=st.mt?[st.mt]:['A','B','C'];
+  let h='<thead><tr><th>Torre</th><th class="r">May</th><th class="r">Jun</th><th class="r">Jul</th><th class="r">Ago</th><th class="r">Total</th></tr></thead><tbody>'; const ct=[0,0,0,0];
+  ts.forEach(t=>{const v=morT[t];v.forEach((x,i)=>ct[i]+=x);h+=`<tr><td>Torre ${t}</td>${v.map((x,i)=>`<td class="r"${st.mm!==''&&+st.mm===i?' style="background:var(--leaf-soft)"':''}>${NF.format(x)}</td>`).join('')}<td class="r">${NF.format(v.reduce((a,b)=>a+b,0))}</td></tr>`});
+  h+=`<tr class="tot"><td>Total</td>${ct.map(x=>`<td class="r">${NF.format(x)}</td>`).join('')}<td class="r">${NF.format(ct.reduce((a,b)=>a+b,0))}</td></tr></tbody>`;
+  $('ceMorT').innerHTML=h;
+}
+['ceMT','ceMM','ceMS'].forEach(id=>$(id).onchange=()=>{st.mt=$('ceMT').value;st.mm=$('ceMM').value;st.ms=$('ceMS').value;mor()});
+$('ceMReset').onclick=()=>{st.mt='';st.mm='';st.ms='desc';$('ceMT').value='';$('ceMM').value='';$('ceMS').value='desc';mor()};
+// ---------- 8. closing ----------
+$('cePct1').textContent=(recaudado/esperado*100).toFixed(1)+'%';
+$('ceMor1').textContent=S(morosidad);
+$('cePend1').textContent=S(pendTot);
+
+ledger(); mor();
+window.CE_draw=function(){ if($('v-ce').offsetParent===null) return; drawChart(); drawBal(); };
+window.CE_draw();
+if(window.matchMedia) matchMedia('(prefers-color-scheme: dark)').addEventListener('change',()=>window.CE_draw());
+})();
+</script>
+
+
+<!-- BLUE HOGAR -->
+<style>
+/* Blue Hogar: misma base visual del informe; prefijo bh- */
+:root{--fu-ce:#1c5cab;--fu-ord:#86b6ef;--fu-rec:#eda100;--cr-emer:#d03b3b;--cr-crit:#ec835a;--cr-reno:#2a78d6;--cr-prev:#1baf7a}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--fu-ce:#6da7ec;--fu-ord:#256abf;--fu-rec:#c98500;--cr-emer:#e05252;--cr-crit:#d96f45;--cr-reno:#3987e5;--cr-prev:#199e70}}
+:root[data-theme="dark"]{--fu-ce:#6da7ec;--fu-ord:#256abf;--fu-rec:#c98500;--cr-emer:#e05252;--cr-crit:#d96f45;--cr-reno:#3987e5;--cr-prev:#199e70}
+.bh-sec{margin-top:30px}
+.bh-sec>h2{font-size:20px;font-weight:700}
+.bh-sec>.sub{color:var(--fg-3);font-size:13px;margin-top:3px;max-width:92ch}
+.bh-hero{display:grid;grid-template-columns:minmax(0,1fr);gap:16px;margin-top:16px}
+.bh-intro{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,6fr);gap:20px 32px;align-items:center}
+.bh-intro-l{display:flex;flex-direction:column;gap:6px}
+.bh-intro-r{border-left:1px solid var(--line);padding-left:32px}
+.bh-intro-r .bh-p:first-child{margin-top:0}
+@media (max-width:900px){.bh-intro{grid-template-columns:minmax(0,1fr)}.bh-intro-r{border-left:0;padding-left:0;border-top:1px solid var(--line);padding-top:14px}}
+@media (max-width:900px){.bh-hero{grid-template-columns:minmax(0,1fr)}}
+.bh-co{display:flex;gap:14px;align-items:flex-start}
+.bh-co .ic{width:44px;height:44px;border-radius:10px;background:var(--leaf-soft);color:var(--leaf-ink);display:grid;place-items:center;flex:none}
+.bh-co .ic svg{width:24px;height:24px}
+.bh-meta{display:flex;gap:6px 18px;flex-wrap:wrap;font-size:12.5px;color:var(--fg-3);margin-top:6px}
+.bh-meta b{color:var(--fg-2);font-weight:500}
+.bh-p{color:var(--fg-2);font-size:13.5px;margin:10px 0 0;max-width:72ch}
+.bh-steps{list-style:none;margin:10px 0 0;padding:0;display:flex;flex-direction:column;gap:10px}
+.bh-steps li{display:grid;grid-template-columns:28px minmax(0,1fr);gap:10px;align-items:start;font-size:13px;color:var(--fg-2)}
+.bh-steps li i{width:26px;height:26px;border-radius:50%;background:var(--leaf-soft);color:var(--leaf-ink);display:grid;place-items:center;font-style:normal;font-weight:700;font-size:12px}
+.bh-steps li b{color:var(--fg);font-weight:600;display:block}
+.bh-dl{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
+.bh-dl a{text-decoration:none;color:inherit}
+.btn.pri{background:var(--leaf);border-color:var(--leaf);color:#fff;font-weight:600}
+:root[data-theme="dark"] .btn.pri{color:#10140c}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .btn.pri{color:#10140c}}
+.kpi .bar{height:5px;border-radius:999px;background:var(--surface-2);margin-top:8px;overflow:hidden;display:flex}
+.kpi .bar i{display:block;height:100%}
+/* filtros compartidos */
+.bh-fbar{display:flex;gap:10px 16px;flex-wrap:wrap;align-items:center;margin-top:12px}
+.bh-chip{border:1px solid var(--line-strong);background:var(--surface);border-radius:999px;padding:4px 11px 4px 9px;font-size:12.5px;cursor:pointer;display:inline-flex;gap:7px;align-items:center;color:var(--fg-2)}
+.bh-chip i{width:10px;height:10px;border-radius:3px;display:inline-block}
+.bh-chip[aria-pressed="false"]{opacity:.45;text-decoration:line-through}
+.bh-chip:hover{border-color:var(--leaf)}
+.bh-fbar select{background:var(--surface);border:1px solid var(--line-strong);border-radius:8px;padding:5px 8px;font-size:12.5px}
+/* timeline */
+.bh-tl{margin-top:12px;overflow-x:auto;border:1px solid var(--line);border-radius:12px;background:var(--surface)}
+.bh-tl-in{min-width:860px;position:relative}
+.bh-tl-row{display:grid;grid-template-columns:250px minmax(0,1fr);align-items:center;min-height:34px;border-bottom:1px solid var(--line)}
+.bh-tl-row:last-child{border-bottom:0}
+@media (max-width:640px){.bh-tl-in{min-width:720px}.bh-tl-row{grid-template-columns:150px minmax(0,1fr)}.bh-tl-row .lb{font-size:11.5px;padding:4px 8px}.bh-tl-row .lb small{display:none}}
+.bh-tl-row.grp{min-height:28px;background:var(--surface-2)}
+.bh-tl-row.grp .lb{font-size:11px;text-transform:uppercase;letter-spacing:.07em;color:var(--fg-3);font-weight:600}
+.bh-tl-row .lb{padding:5px 12px;font-size:12.5px;line-height:1.3;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.bh-tl-row .lb small{color:var(--fg-3);font-family:var(--mono);font-size:11px}
+.bh-tl-row.it{cursor:pointer}
+.bh-tl-row.it:hover{background:var(--surface-2)}
+.bh-tl-row.dim{opacity:.18}
+.bh-trk{position:relative;height:100%;min-height:34px;border-left:1px solid var(--line)}
+.bh-tl-head{position:sticky;top:0;z-index:2;background:var(--surface)}
+.bh-tl-head .bh-trk{min-height:30px}
+.bh-mo{position:absolute;top:0;bottom:0;border-left:1px dashed var(--line);font-size:11px;color:var(--fg-3);padding:7px 0 0 6px;white-space:nowrap}
+.bh-grid{position:absolute;top:0;bottom:0;border-left:1px dashed var(--line);pointer-events:none}
+.bh-bar{position:absolute;top:50%;height:14px;margin-top:-7px;border-radius:4px;min-width:6px}
+.bh-bar.zero{background:transparent!important;border:1.5px dashed var(--fg-3)}
+.bh-bar.ap{background-image:repeating-linear-gradient(135deg,rgba(255,255,255,.28) 0 4px,transparent 4px 8px)}
+.bh-pay{position:absolute;top:50%;width:9px;height:9px;margin:-4.5px 0 0 -4.5px;transform:rotate(45deg);background:var(--fg);border:1.5px solid var(--surface);z-index:1}
+.bh-pay.post{background:var(--surface);border-color:var(--fg)}
+.bh-cut{position:absolute;top:0;bottom:0;border-left:2px solid var(--fg);opacity:.55;pointer-events:none;z-index:1}
+.bh-cut span{position:absolute;top:6px;left:4px;font-size:10.5px;background:var(--surface);padding:0 3px;white-space:nowrap;color:var(--fg-2)}
+.bh-tip{position:fixed;z-index:50;pointer-events:none;background:var(--fg);color:var(--bg);font-size:12px;padding:7px 10px;border-radius:8px;max-width:300px;box-shadow:var(--shadow);opacity:0;transition:opacity .1s}
+.bh-tip b{display:block;font-weight:600}
+.bh-tip .m{font-family:var(--mono)}
+.bh-lg{display:flex;gap:6px 16px;flex-wrap:wrap;font-size:12px;color:var(--fg-2);margin-top:8px;align-items:center}
+.bh-lg span{display:inline-flex;gap:6px;align-items:center}
+.bh-lg i{width:12px;height:10px;border-radius:2px;display:inline-block}
+.bh-lg i.dm{width:8px;height:8px;transform:rotate(45deg);background:var(--fg);border-radius:0}
+.bh-lg i.dm.post{background:transparent;border:1.5px solid var(--fg)}
+.bh-lg i.zr{border:1.5px dashed var(--fg-3)}
+/* embudo */
+.bh-g2{display:grid;grid-template-columns:minmax(0,7fr) minmax(0,5fr);gap:16px;margin-top:14px}
+@media (max-width:980px){.bh-g2{grid-template-columns:minmax(0,1fr)}}
+.bh-fun{display:flex;flex-direction:column;align-items:center;gap:6px;margin-top:14px}
+.bh-tier{position:relative;height:74px;cursor:pointer;display:flex;align-items:center;justify-content:center;text-align:center;color:#fff;transition:filter .15s,opacity .15s;clip-path:polygon(0 0,100% 0,calc(100% - var(--in)) 100%,var(--in) 100%)}
+.bh-tier:hover{filter:brightness(1.08)}
+.bh-tier.off{opacity:.25}
+.bh-tier .tx{line-height:1.25;padding:0 calc(var(--in) + 6px)}
+.bh-tier .tx b{display:block;font-family:var(--display);font-size:15px;font-weight:700}
+.bh-tier .tx span{font-size:12px;opacity:.92}
+.bh-tier .tx .m{font-family:var(--mono);font-size:13px;opacity:1}
+.bh-funk{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:8px;margin-top:14px}
+.bh-funk div{font-size:12px;color:var(--fg-2);border-left:3px solid;padding:2px 0 2px 9px}
+.bh-funk b{display:block;color:var(--fg);font-size:12.5px}
+.bh-hb{display:flex;flex-direction:column;gap:12px;margin-top:14px}
+.bh-hb .r{display:grid;grid-template-columns:96px minmax(0,1fr) 118px;gap:10px;align-items:center;font-size:12.5px}
+.bh-hb .t{height:16px;background:var(--surface-2);border-radius:0 4px 4px 0;display:flex;overflow:hidden}
+.bh-hb .t i{display:block;height:100%;border-right:1px solid var(--surface)}
+.bh-hb .a{text-align:right;font-family:var(--mono);font-variant-numeric:tabular-nums}
+.bh-hb .n{color:var(--fg-2)}
+/* tarjetas de trabajos */
+.bh-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:14px;margin-top:12px}
+@media (max-width:420px){.bh-cards{grid-template-columns:minmax(0,1fr)}}
+.bh-card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px 16px;display:flex;flex-direction:column;gap:8px;border-top:4px solid var(--c);scroll-margin-top:80px;transition:box-shadow .2s}
+.bh-card.flash{box-shadow:0 0 0 3px var(--leaf)}
+.bh-card h3{font-size:15px;font-weight:700;line-height:1.3}
+.bh-tags{display:flex;gap:6px;flex-wrap:wrap}
+.bh-pill{display:inline-flex;gap:5px;align-items:center;font-size:11px;font-weight:600;padding:1px 8px;border-radius:999px;white-space:nowrap;background:var(--surface-2);color:var(--fg-2);border:1px solid var(--line)}
+.bh-pill.cr{color:#fff;border-color:transparent}
+.bh-pill.ok{background:var(--leaf-soft);color:var(--leaf-ink);border-color:transparent}
+.bh-pill.pe{background:var(--warn-bg);color:var(--warn-fg);border-color:transparent}
+.bh-card .dt{font-family:var(--mono);font-size:11.5px;color:var(--fg-3)}
+.bh-card p{margin:0;color:var(--fg-2);font-size:13px}
+.bh-money{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;font-size:11px;color:var(--fg-3);text-transform:uppercase;letter-spacing:.05em}
+.bh-money b{display:block;font-family:var(--mono);font-size:14px;color:var(--fg);font-weight:500;text-transform:none;letter-spacing:0}
+.bh-prog{height:6px;border-radius:999px;background:var(--surface-2);overflow:hidden;display:flex}
+.bh-prog i{display:block;height:100%}
+.bh-docs{display:flex;flex-wrap:wrap;gap:6px}
+.bh-doc{display:inline-flex;gap:5px;align-items:center;font-size:12px;color:var(--leaf-ink);text-decoration:none;border:1px solid var(--line);border-radius:6px;padding:2px 7px;background:var(--surface)}
+.bh-doc:hover{border-color:var(--leaf)}
+.bh-doc svg{width:12px;height:12px;flex:none}
+.bh-doc.nl{color:var(--fg-3);cursor:default}
+.bh-doc code{font-family:var(--mono);font-size:10.5px;color:var(--fg-3)}
+.bh-th{display:flex;gap:6px;flex-wrap:wrap}
+.bh-th button{border:0;padding:0;width:58px;height:58px;border-radius:8px;overflow:hidden;cursor:zoom-in;background:var(--surface-2)}
+.bh-th img{width:100%;height:100%;object-fit:cover;display:block}
+.bh-card details{border-top:1px solid var(--line);padding-top:8px;margin-top:auto}
+.bh-card summary{cursor:pointer;font-size:12.5px;color:var(--fg-2);font-weight:500}
+.bh-pl{list-style:none;padding:0;margin:8px 0 0;display:flex;flex-direction:column;gap:8px}
+.bh-pl li{display:grid;grid-template-columns:78px minmax(0,1fr) auto;gap:8px;font-size:12px;align-items:start}
+.bh-pl .f{font-family:var(--mono);color:var(--fg-3)}
+.bh-pl .m{font-family:var(--mono);text-align:right;white-space:nowrap}
+.bh-pl .lk{grid-column:2/-1}
+.bh-pl .lk a{font-size:11.5px}
+.bh-cnt{font-size:12.5px;color:var(--fg-3)}
+/* tabla documentos */
+.bh-tbl{width:100%;border-collapse:collapse;font-size:13px}
+.bh-tbl th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--fg-3);padding:8px 10px;border-bottom:1px solid var(--line-strong);font-weight:600;background:var(--surface-2);position:sticky;top:0}
+.bh-tbl td{padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+.bh-tbl .r{text-align:right;font-family:var(--mono);font-variant-numeric:tabular-nums;white-space:nowrap}
+.bh-tbl code{font-family:var(--mono);font-size:12px;color:var(--fg-3)}
+.bh-tbl a{color:var(--leaf-ink)}
+.bh-tbl tr.tot td{font-weight:600;border-top:2px solid var(--fg);border-bottom:0}
+.bh-ok{color:var(--good);font-size:12px;white-space:nowrap}
+.bh-na{color:var(--fg-3);font-size:12px}
+/* galería */
+.bh-gal{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:10px;margin-top:12px}
+.bh-gal figure{margin:0;background:var(--surface);border:1px solid var(--line);border-radius:10px;overflow:hidden;cursor:zoom-in;display:flex;flex-direction:column}
+.bh-gal img{width:100%;aspect-ratio:4/3;object-fit:cover;display:block;background:var(--surface-2)}
+.bh-gal figcaption{font-size:12px;color:var(--fg-2);padding:7px 9px;line-height:1.35}
+.bh-gal figcaption small{display:block;color:var(--fg-3);font-size:11px}
+.bh-lb{border:0;padding:0;background:transparent;max-width:min(96vw,1100px);max-height:94vh}
+.bh-lb::backdrop{background:rgba(10,12,8,.82)}
+.bh-lb-in{display:flex;flex-direction:column;align-items:center;gap:10px}
+.bh-lb img{max-width:min(94vw,1100px);max-height:80vh;border-radius:8px;display:block}
+.bh-lb-bar{display:flex;gap:10px;align-items:center;color:#f2f2ee;font-size:13px;width:100%;justify-content:space-between}
+.bh-lb-bar button{background:rgba(255,255,255,.14);border:0;color:#fff;border-radius:8px;padding:7px 12px;cursor:pointer;font-size:13px}
+/* listas cortas */
+.bh-li{list-style:none;padding:0;margin:12px 0 0;display:flex;flex-direction:column;gap:12px}
+.bh-li li{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 12px;padding-bottom:12px;border-bottom:1px dashed var(--line)}
+.bh-li li:last-child{border-bottom:0;padding-bottom:0}
+.bh-li b{font-size:13.5px}
+.bh-li p{grid-column:1/-1;margin:0;font-size:12.5px;color:var(--fg-2)}
+.bh-li .dt{font-family:var(--mono);font-size:11.5px;color:var(--fg-3);white-space:nowrap}
+.bh-pr{font-size:10.5px;font-weight:700;padding:1px 7px;border-radius:4px;text-transform:uppercase;letter-spacing:.05em}
+.bh-pr.Alta{background:var(--cr-emer);color:#fff}
+.bh-pr.Media{background:var(--warn-bg);color:var(--warn-fg)}
+/* cierre */
+.bh-close{margin-top:30px;background:var(--surface);border:1px solid var(--line);border-left:4px solid var(--leaf);border-radius:12px;padding:22px 24px}
+.bh-close h2{font-size:20px}
+.bh-close>p{color:var(--fg-2);max-width:84ch;margin:10px 0 0;font-size:14px}
+.bh-res{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-top:16px}
+.bh-res div{background:var(--surface-2);border-radius:10px;padding:12px 14px}
+.bh-res b{display:block;font-family:var(--display);font-size:26px;font-weight:700;line-height:1.1;color:var(--leaf-ink)}
+.bh-res span{font-size:12.5px;color:var(--fg-2)}
+.bh-res h4{margin:0 0 2px;font-size:13px}
+.bh-chk{list-style:none;padding:0;margin:16px 0 0;display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:8px 24px}
+.bh-chk li{display:flex;gap:8px;font-size:13.5px;color:var(--fg-2)}
+.bh-chk li svg{width:18px;height:18px;color:var(--good);flex:none;margin-top:1px}
+</style>
+
+<section id="v-bh" hidden>
+  <!-- 1. PRESENTACIÓN -->
+  <div class="bh-hero">
+    <div class="panel bh-intro">
+      <div class="bh-intro-l">
+      <div class="bh-co">
+        <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.7c3.5 4 6 7.3 6 10.3a6 6 0 0 1-12 0c0-3 2.5-6.3 6-10.3z"/><path d="M9 14a3 3 0 0 0 3 3"/></svg></div>
+        <div>
+          <div class="eyebrow">Proveedor de sistemas hidráulicos y sanitarios</div>
+          <h2 style="margin-top:2px">Asistencias Blue Hogar S.A.C.</h2>
+          <div class="bh-meta"><span>RUC <b>20612188832</b></span><span>Representante <b>Hugo L. Domínguez Ávila</b></span><span>Periodo <b>15/03 – 30/09/2026</b></span></div>
+        </div>
+      </div>
+      <div class="bh-dl">
+        <a class="btn pri" id="bhPdf" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg>Descargar informe técnico de la empresa (PDF)</a>
+        <a class="btn" id="bhFolder" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>Carpeta de documentos en Drive</a>
+      </div>
+      </div>
+      <div class="bh-intro-r">
+      <p class="bh-p">Esta sección reúne todos los pagos hechos a Asistencias Blue Hogar desde el 15 de marzo hasta el 30 de setiembre de 2026. Cada pago está ubicado en el estado de cuenta del BCP y vinculado al trabajo que pagó, al recibo de la empresa y al informe técnico que lo sustenta.</p>
+      <p class="bh-p">Las intervenciones atendieron el bombeo de agua potable de las tres torres, los pozos de aguas residuales, las cisternas y varias fugas. Muchas fueron emergencias que no podían esperar.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="kpis" id="bhKpis"></div>
+
+  <!-- 2. TIMELINE -->
+  <div class="bh-sec">
+    <h2>Línea de tiempo de los trabajos</h2>
+    <div class="sub">Cada barra muestra el periodo de ejecución según los informes y recibos; los rombos son los pagos. Pasa el cursor para ver el detalle y haz clic en un trabajo para ir a su ficha.</div>
+    <div class="bh-fbar" id="bhFbar"></div>
+    <div class="bh-tl"><div class="bh-tl-in" id="bhTl"></div></div>
+    <div class="bh-lg" id="bhTlLg"></div>
+  </div>
+
+  <!-- 3. EMBUDO + DISTRIBUCIÓN -->
+  <div class="bh-g2">
+    <div class="panel">
+      <h2>Embudo de criticidad</h2>
+      <div class="sub">Los trabajos ordenados por urgencia, de lo que no podía esperar a lo preventivo. Haz clic en un nivel para filtrar la línea de tiempo y las fichas.</div>
+      <div class="bh-fun" id="bhFun"></div>
+      <div class="bh-funk" id="bhFunK"></div>
+    </div>
+    <div class="panel">
+      <h2>¿Dónde se invirtió?</h2>
+      <div class="sub">Valor de los trabajos contratados (S/), por torre y por sistema.</div>
+      <div class="bh-hb" id="bhTorre"></div>
+      <div style="height:14px"></div>
+      <div class="bh-hb" id="bhSis"></div>
+      <div class="bh-lg" id="bhHbLg"></div>
+    </div>
+  </div>
+
+  <!-- 4. FICHAS -->
+  <div class="bh-sec" id="bhFichas">
+    <h2>Trabajos y su sustento</h2>
+    <div class="sub">Una ficha por trabajo: qué se hizo, cuánto costó, cuánto se pagó y con qué documentos. Despliega «Pagos» para ver cada operación bancaria.</div>
+    <div class="ce-fbar">
+      <div class="f"><label for="bhFSis">Sistema</label><select id="bhFSis"><option value="">Todos</option></select></div>
+      <div class="f"><label for="bhFTor">Torre</label><select id="bhFTor"><option value="">Todas</option><option>A</option><option>B</option><option>C</option></select></div>
+      <div class="f" style="flex:1 1 220px"><label for="bhFQ">Buscar</label><input type="search" id="bhFQ" placeholder="Manifold, pozo, cisterna, recibo…"></div>
+      <button class="link-btn" type="button" id="bhReset" style="margin-bottom:8px">Limpiar filtros</button>
+    </div>
+    <div class="bh-cnt" id="bhCnt" style="margin-top:10px"></div>
+    <div class="bh-cards" id="bhCards"></div>
+  </div>
+
+  <!-- 5. PAGOS POR MES -->
+  <div class="bh-sec">
+    <div class="panel">
+      <div class="ch-h">
+        <div><h2>Pagos por mes</h2><div class="sub">Montos pagados según el estado de cuenta, por origen de los fondos, y su acumulado.</div></div>
+        <div class="seg" role="group" aria-label="Agrupar"><button type="button" data-bhv="fu" aria-pressed="true">Por origen</button><button type="button" data-bhv="cr" aria-pressed="false">Por criticidad</button></div>
+      </div>
+      <div class="ch-box"><canvas id="bhChart" aria-label="Pagos mensuales a Blue Hogar"></canvas></div>
+      <div class="bh-lg" id="bhChLg"></div>
+    </div>
+  </div>
+
+  <!-- 6. DETALLE DE PAGOS -->
+  <div class="bh-sec">
+    <div class="ledger-h">
+      <div><h2>Detalle de pagos</h2><div class="sub" id="bhLedSub"></div></div>
+      <div class="seg" role="group" aria-label="Agrupar"><button type="button" data-bhg="mes" aria-pressed="true">Por mes</button><button type="button" data-bhg="fu" aria-pressed="false">Por origen</button></div>
+    </div>
+    <div class="tbl-wrap"><table class="led" id="bhLed"></table></div>
+    <p class="note" id="bhJunNote"></p>
+  </div>
+
+  <!-- 7. SIN PAGO + COTIZACIONES -->
+  <div class="bh-g2">
+    <div class="panel">
+      <h2>Atenciones sin pago del condominio</h2>
+      <div class="sub">Trabajos documentados por la empresa por los que no existe ningún pago en los estados de cuenta.</div>
+      <ul class="bh-li" id="bhSin"></ul>
+    </div>
+    <div class="panel">
+      <h2>Cotizaciones que no se pagaron</h2>
+      <div class="sub">Propuestas de la empresa que la Junta no aprobó o que siguen en evaluación. Solo se pagó lo aprobado y ejecutado.</div>
+      <ul class="bh-li" id="bhCot"></ul>
+    </div>
+  </div>
+
+  <!-- 8. FOTOS -->
+  <div class="bh-sec">
+    <h2>Registro fotográfico</h2>
+    <div class="sub">Fotografías incluidas por la empresa en su informe técnico. Haz clic para ampliar.</div>
+    <div class="bh-fbar" id="bhGalF"></div>
+    <div class="bh-gal" id="bhGal"></div>
+  </div>
+
+  <!-- 9. DOCUMENTOS -->
+  <div class="bh-sec">
+    <h2>Documentos de respaldo</h2>
+    <div class="sub" id="bhDocSub"></div>
+    <div class="tbl-wrap" style="max-height:520px;overflow:auto"><table class="bh-tbl" id="bhDocs" style="min-width:760px"></table></div>
+  </div>
+
+  <!-- 10. PENDIENTES -->
+  <div class="bh-sec">
+    <div class="panel">
+      <h2>Recomendaciones técnicas pendientes</h2>
+      <div class="sub">Lo que la empresa recomienda atender a continuación. Ninguna está aprobada ni pagada; cada una requerirá cotización y aprobación de la Junta.</div>
+      <div class="ce-wrapx"><table class="bh-tbl" id="bhPend" style="margin-top:10px"></table></div>
+    </div>
+  </div>
+
+  <!-- 11. RESUMEN FINAL -->
+  <div class="bh-close">
+    <div class="eyebrow">Resumen final</div>
+    <h2 style="margin-top:4px">Lo que el condominio recibió por lo pagado</h2>
+    <p id="bhCloseP"></p>
+    <div class="bh-res" id="bhRes"></div>
+    <ul class="bh-chk" id="bhChk"></ul>
+  </div>
+
+  <dialog class="bh-lb" id="bhLb" aria-label="Fotografía ampliada">
+    <div class="bh-lb-in">
+      <img id="bhLbImg" alt="">
+      <div class="bh-lb-bar"><button type="button" id="bhLbP" aria-label="Anterior">‹ Anterior</button><span id="bhLbC"></span><span style="display:flex;gap:8px"><button type="button" id="bhLbN" aria-label="Siguiente">Siguiente ›</button><button type="button" id="bhLbX" aria-label="Cerrar">Cerrar ✕</button></span></div>
+    </div>
+  </dialog>
+  <div class="bh-tip" id="bhTip" role="tooltip"></div>
+</section>
+
+<script>
+(function(){
+const D=window.CPP_DATA, B=window.BH_DATA;
+const NF=new Intl.NumberFormat('es-PE',{minimumFractionDigits:2,maximumFractionDigits:2});
+const N0=new Intl.NumberFormat('es-PE',{maximumFractionDigits:0});
+const S=v=>'S/ '+NF.format(v);
+const $=id=>document.getElementById(id);
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const fd=d=>d.slice(8,10)+'/'+d.slice(5,7);
+const fdate=d=>d.slice(8,10)+'/'+d.slice(5,7)+'/'+d.slice(0,4);
+const norm=s=>String(s||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase();
+const css=v=>getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+const MES=['','Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Setiembre','Octubre'];
+const RID=Object.fromEntries(D.recs.map(r=>[r.id,r]));
+const TID=Object.fromEntries(B.trab.map(t=>[t.id,t]));
+const CR={emer:{n:'Emergencias',l:'Emergencia',d:'Riesgo sanitario, aniegos o daño inmediato al edificio.'},crit:{n:'Críticos de agua potable',l:'Crítico',d:'Riesgo de dejar sin agua a una torre.'},reno:{n:'Renovaciones integrales',l:'Renovación',d:'Equipos al final de su vida útil, reemplazados por completo.'},prev:{n:'Preventivos',l:'Preventivo',d:'Mantenimiento para evitar fallas futuras.'}};
+const CRK=['emer','crit','reno','prev'];
+const SIS={agua:'Agua potable',resid:'Aguas residuales',fugas:'Fugas y filtraciones',medic:'Contómetros'};
+const FU={ce:{n:'Cuota extraordinaria',v:'--fu-ce'},ord:{n:'Fondos ordinarios',v:'--fu-ord'},rec:{n:'Cobro en recibo (contómetros)',v:'--fu-rec'}};
+const I_DOC='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></svg>';
+const I_EXT='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 3h7v7M10 14 21 3M21 14v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5"/></svg>';
+const I_WA='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.4 8.4 0 0 1-12.4 7.4L3 21l2.1-5.4A8.4 8.4 0 1 1 21 11.5z"/></svg>';
+const I_OK='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>';
+const DK={inf:'Informe',rec:'Recibo',cot:'Cotización'};
+
+// ---------- datos derivados ----------
+const P=B.pagos.map(p=>Object.assign({},RID[p.id],{tr:p.tr,fu:p.fu})).sort((a,b)=>a.f<b.f?-1:a.f>b.f?1:a.id-b.id);
+const FUof=Object.fromEntries(P.map(p=>[p.id,p.fu]));
+const pagado=P.reduce((a,r)=>a+r.amt,0);
+const costo=B.trab.reduce((a,t)=>a+t.costo,0);
+const paidT=t=>t.pagos.reduce((a,[p,m])=>a+m,0);
+const docsLinked=Object.values(B.docs).filter(d=>d.u).length;
+const byFu=k=>P.filter(p=>p.fu===k).reduce((a,r)=>a+r.amt,0);
+const juneTot=B.jun.reduce((a,id)=>a+RID[id].amt,0);
+
+$('bhPdf').href=B.pdf; $('bhFolder').href=B.folder;
+
+function kpis(){
+  const fuBar=['ce','ord','rec'].map(k=>`<i style="width:${byFu(k)/pagado*100}%;background:var(${FU[k].v})"></i>`).join('');
+  const k=[
+    ['Pagado al 30/09',S(pagado),`${P.length} pagos, 100% conciliados con el BCP`,`<div class="bar">${fuBar}</div>`],
+    ['Valor de los trabajos',S(costo),`${B.trab.length} trabajos contratados y ejecutados`,''],
+    ['Saldo al corte',S(costo-pagado),`Cuota 3 de 3 de la Torre A, pagada el ${fdate(B.post.f)}`,''],
+    ['Con cuota extraordinaria',S(byFu('ce')),`${N0.format(byFu('ce')/pagado*100)}% del total pagado`,''],
+    ['Emergencias atendidas',String(B.trab.filter(t=>t.c==='emer').length),`${S(B.trab.filter(t=>t.c==='emer').reduce((a,t)=>a+t.costo,0))} en trabajos urgentes`,''],
+  ];
+  $('bhKpis').innerHTML=k.map(([l,v,s,x])=>`<div class="kpi"><div class="l">${l}</div><div class="v">${v}</div><div class="s">${s}</div>${x}</div>`).join('');
+}
+
+// ---------- estado y filtros ----------
+const st={crit:new Set(CRK),sis:'',tor:'',q:'',grp:'mes',chv:'fu'};
+const match=t=>st.crit.has(t.c)&&(!st.sis||t.s===st.sis)&&(!st.tor||t.t.includes(st.tor))&&(!st.q||norm([t.n,t.sus,t.t,SIS[t.s],CR[t.c].l,...t.docs,...t.docs.map(d=>B.docs[d].t)].join(' ')).includes(norm(st.q)));
+function fbar(){
+  $('bhFbar').innerHTML=CRK.map(k=>`<button type="button" class="bh-chip" data-cr="${k}" aria-pressed="${st.crit.has(k)}"><i style="background:var(--cr-${k})"></i>${CR[k].l}</button>`).join('')+
+   `<select id="bhTlTor" aria-label="Torre"><option value="">Todas las torres</option><option value="A">Torre A</option><option value="B">Torre B</option><option value="C">Torre C</option></select><button class="link-btn" type="button" id="bhTlReset">Limpiar filtros</button>`;
+  $('bhTlTor').value=st.tor;
+  $('bhFbar').querySelectorAll('[data-cr]').forEach(b=>b.onclick=()=>{const k=b.dataset.cr; if(st.crit.has(k)&&st.crit.size===1){CRK.forEach(x=>st.crit.add(x))}else if(st.crit.has(k)){st.crit.delete(k)}else st.crit.add(k); refresh()});
+  $('bhTlTor').onchange=e=>{st.tor=e.target.value;$('bhFTor').value=st.tor;refresh()};
+  $('bhTlReset').onclick=reset;
+}
+function reset(){CRK.forEach(x=>st.crit.add(x));st.sis='';st.tor='';st.q='';$('bhFSis').value='';$('bhFTor').value='';$('bhFQ').value='';refresh()}
+function refresh(){fbar();timeline();funnel();cards()}
+
+// ---------- timeline ----------
+const T0=new Date('2026-03-15T00:00:00'),T1=new Date('2026-10-15T00:00:00'),SPAN=(T1-T0);
+const X=d=>Math.max(0,Math.min(100,(new Date(d+'T12:00:00')-T0)/SPAN*100));
+const tip=$('bhTip');
+function showTip(e,html){tip.innerHTML=html;tip.style.opacity=1;const w=tip.offsetWidth,h=tip.offsetHeight;let x=e.clientX+14,y=e.clientY+14;if(x+w>innerWidth-8)x=e.clientX-w-14;if(y+h>innerHeight-8)y=e.clientY-h-14;tip.style.left=x+'px';tip.style.top=y+'px'}
+function hideTip(){tip.style.opacity=0}
+function timeline(){
+  const months=['2026-04-01','2026-05-01','2026-06-01','2026-07-01','2026-08-01','2026-09-01','2026-10-01'];
+  let h=`<div class="bh-tl-row bh-tl-head"><div class="lb" style="font-size:11px;color:var(--fg-3);text-transform:uppercase;letter-spacing:.07em;font-weight:600">Trabajo</div><div class="bh-trk"><span class="bh-mo" style="left:0;border:0">Mar</span>${months.map(m=>`<span class="bh-mo" style="left:${X(m)}%">${MES[+m.slice(5,7)].slice(0,3)}</span>`).join('')}</div></div>`;
+  const grid=months.map(m=>`<span class="bh-grid" style="left:${X(m)}%"></span>`).join('');
+  const cut=`<span class="bh-cut" style="left:${X('2026-09-30')}%"></span>`;
+  ['agua','resid','fugas','medic'].forEach(s=>{
+    const ts=B.trab.filter(t=>t.s===s);
+    h+=`<div class="bh-tl-row grp"><div class="lb">${SIS[s]}</div><div class="bh-trk">${grid}</div></div>`;
+    ts.forEach(t=>{
+      const on=match(t);
+      const x0=X(t.ini),x1=X(t.fin);
+      const pays=t.pagos.filter(([p])=>p!=='jun').map(([p,m])=>`<span class="bh-pay" style="left:${X(RID[p].f)}%" data-tp="p" data-id="${p}" data-m="${m}" data-t="${t.id}"></span>`).join('')+
+        (t.pagos.some(([p])=>p==='jun')?B.jun.map(id=>`<span class="bh-pay" style="left:${X(RID[id].f)}%" data-tp="j" data-id="${id}" data-t="${t.id}"></span>`).join(''):'')+
+        (t.id===B.post.tr?`<span class="bh-pay post" style="left:${X(B.post.f)}%" data-tp="post"></span>`:'');
+      h+=`<div class="bh-tl-row it${on?'':' dim'}" data-t="${t.id}"><div class="lb">${esc(t.n)} <small>· ${t.t}</small></div><div class="bh-trk">${grid}${cut}<span class="bh-bar${t.aprox?' ap':''}" style="left:${x0}%;width:${Math.max(.8,x1-x0)}%;background:var(--cr-${t.c})" data-tp="b" data-t="${t.id}"></span>${pays}</div></div>`;
+    });
+  });
+  h+=`<div class="bh-tl-row grp"><div class="lb">Sin pago del condominio</div><div class="bh-trk">${grid}</div></div>`;
+  B.sincargo.forEach((z,i)=>{h+=`<div class="bh-tl-row"><div class="lb">${esc(z.n)}</div><div class="bh-trk">${grid}${cut}<span class="bh-bar zero" style="left:${X(z.ini)}%;width:${Math.max(1.2,X(z.fin)-X(z.ini))}%" data-tp="z" data-i="${i}"></span></div></div>`});
+  $('bhTl').innerHTML=h;
+  $('bhTl').querySelectorAll('[data-tp]').forEach(el=>{
+    el.addEventListener('mousemove',e=>{
+      const tp=el.dataset.tp; let html='';
+      if(tp==='b'){const t=TID[el.dataset.t];html=`<b>${esc(t.n)}</b>${fdate(t.ini)} – ${fdate(t.fin)}${t.aprox?' (aprox.)':''}<br>Costo <span class="m">${S(t.costo)}</span> · pagado <span class="m">${S(paidT(t))}</span>`}
+      else if(tp==='p'){const r=RID[el.dataset.id];html=`<b>Pago ${fdate(r.f)}</b><span class="m">${S(+el.dataset.m)}</span>${+el.dataset.m!==r.amt?' de '+S(r.amt):''}<br>Op. ${esc(r.op)} · ${FU[FUof[r.id]].n}`}
+      else if(tp==='j'){const r=RID[el.dataset.id];html=`<b>Abono consolidado ${fdate(r.f)}</b><span class="m">${S(r.amt)}</span><br>Uno de los 3 abonos de junio que cubrieron este y otros 4 trabajos`}
+      else if(tp==='post'){html=`<b>Pago ${fdate(B.post.f)}</b><span class="m">${S(B.post.m)}</span><br>Cuota 3 de 3, después del corte`}
+      else if(tp==='z'){const z=B.sincargo[+el.dataset.i];html=`<b>${esc(z.n)}</b>${esc(z.f)}<br>Sin pago del condominio`}
+      showTip(e,html);
+    });
+    el.addEventListener('mouseleave',hideTip);
+  });
+  $('bhTl').querySelectorAll('.bh-tl-row.it').forEach(r=>r.onclick=()=>goCard(r.dataset.t));
+  $('bhTlLg').innerHTML=CRK.map(k=>`<span><i style="background:var(--cr-${k})"></i>${CR[k].l}</span>`).join('')+
+    `<span><i class="dm"></i>Pago</span><span><i class="dm post"></i>Pago después del corte</span><span><i class="zr"></i>Sin pago del condominio</span><span><i style="background:repeating-linear-gradient(135deg,var(--fg-3) 0 3px,transparent 3px 6px)"></i>Fechas aproximadas (según recibos y pagos)</span><span style="border-left:2px solid var(--fg);padding-left:6px;opacity:.7">Corte 30/09</span>`;
+}
+function goCard(id){
+  if(!match(TID[id])){reset()}
+  const el=document.querySelector(`.bh-card[data-t="${id}"]`); if(!el) return;
+  el.scrollIntoView({behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth',block:'start'});
+  el.classList.add('flash'); setTimeout(()=>el.classList.remove('flash'),1600);
+  const d=el.querySelector('details'); if(d) d.open=true;
+}
+
+// ---------- embudo ----------
+function funnel(){
+  const W=[100,84,68,52],tot=costo;
+  $('bhFun').innerHTML=CRK.map((k,i)=>{
+    const ts=B.trab.filter(t=>t.c===k),m=ts.reduce((a,t)=>a+t.costo,0);
+    const inset=(W[i]-(W[i+1]??W[i]-16))/2;
+    return `<div class="bh-tier${st.crit.has(k)?'':' off'}" data-cr="${k}" role="button" tabindex="0" aria-label="${CR[k].n}: ${ts.length} trabajos, ${S(m)}" style="width:${W[i]}%;background:var(--cr-${k});--in:${inset/W[i]*100}%"><div class="tx"><b>${CR[k].n}</b><span>${ts.length} trabajos · </span><span class="m">${S(m)}</span><span> · ${N0.format(m/tot*100)}%</span></div></div>`;
+  }).join('');
+  $('bhFun').querySelectorAll('.bh-tier').forEach(el=>{const f=()=>{const k=el.dataset.cr; if(st.crit.size===1&&st.crit.has(k)){CRK.forEach(x=>st.crit.add(x))}else{st.crit.clear();st.crit.add(k)} refresh()}; el.onclick=f; el.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();f()}}});
+  $('bhFunK').innerHTML=CRK.map(k=>`<div style="border-color:var(--cr-${k})"><b>${CR[k].l}</b>${CR[k].d}</div>`).join('');
+}
+
+// ---------- distribución ----------
+function dist(){
+  const keyT=t=>t.t.length===1?t.t:'Comunes';
+  const torres=['A','B','C','Comunes'];
+  const tv=torres.map(k=>({k,parts:CRK.map(c=>B.trab.filter(t=>keyT(t)===k&&t.c===c).reduce((a,t)=>a+t.costo,0))}));
+  const sv=Object.keys(SIS).map(k=>({k,parts:CRK.map(c=>B.trab.filter(t=>t.s===k&&t.c===c).reduce((a,t)=>a+t.costo,0))}));
+  const mx=Math.max(...tv.concat(sv).map(r=>r.parts.reduce((a,b)=>a+b,0)));
+  const row=(lbl,parts)=>{const s=parts.reduce((a,b)=>a+b,0);return `<div class="r"><span class="n">${lbl}</span><span class="t" style="width:${s/mx*100}%" title="${S(s)}">${parts.map((p,i)=>p?`<i style="width:${p/s*100}%;background:var(--cr-${CRK[i]})"></i>`:'').join('')}</span><span class="a">${S(s)}</span></div>`};
+  $('bhTorre').innerHTML='<div class="eyebrow" style="color:var(--fg-3)">Por torre</div>'+tv.map(r=>row(r.k==='Comunes'?'Áreas comunes':'Torre '+r.k,r.parts)).join('');
+  $('bhSis').innerHTML='<div class="eyebrow" style="color:var(--fg-3)">Por sistema</div>'+sv.map(r=>row(SIS[r.k],r.parts)).join('');
+  $('bhHbLg').innerHTML=CRK.map(k=>`<span><i style="background:var(--cr-${k})"></i>${CR[k].l}</span>`).join('')+'<span style="color:var(--fg-3)">«Áreas comunes» agrupa trabajos de más de una torre.</span>';
+}
+
+// ---------- fichas ----------
+function docLink(id){const d=B.docs[id];return d.u?`<a class="bh-doc" href="${esc(d.u)}" target="_blank" rel="noopener" title="${esc(d.t)}">${I_EXT}<code>${id}</code>${DK[d.k]} ${esc(d.f)}</a>`:`<span class="bh-doc nl" title="${esc(d.t)} · citado en el PDF, sin enlace">${I_DOC}<code>${id}</code>${DK[d.k]} ${esc(d.f)}</span>`}
+function payLinks(r){
+  const L=[];
+  if(r.eecc) L.push(`<a href="${esc(r.eecc)}" target="_blank" rel="noopener">${I_DOC}EECC ${r.acc==='CTE'?'cta. cte.':'ahorros'} ${MES[+r.f.slice(5,7)].slice(0,3)}</a>`);
+  (r.wa||[]).forEach(([l,u])=>L.push(`<a class="wa" href="${esc(u)}" target="_blank" rel="noopener">${I_WA}${esc(l)}</a>`));
+  (r.links||[]).forEach(([l,u])=>L.push(`<a href="${esc(u)}" target="_blank" rel="noopener">${/^https?:/.test(u)?I_EXT:I_DOC}${esc(l)}</a>`));
+  return L.join('');
+}
+function cards(){
+  const ts=B.trab.filter(match);
+  $('bhCnt').textContent=`${ts.length} de ${B.trab.length} trabajos · ${S(ts.reduce((a,t)=>a+t.costo,0))} en valor · ${S(ts.reduce((a,t)=>a+paidT(t),0))} pagados al 30/09`;
+  if(!ts.length){$('bhCards').innerHTML='<div class="empty">Ningún trabajo coincide con los filtros.</div>';return}
+  $('bhCards').innerHTML=ts.map(t=>{
+    const pg=paidT(t),pct=pg/t.costo*100,post=t.id===B.post.tr;
+    const est=pct>=99.99?'<span class="bh-pill ok">Cancelado</span>':`<span class="bh-pill pe">Pagado ${N0.format(pct)}% al corte</span>`;
+    const fus=[...new Set(t.pagos.map(([p])=>p==='jun'?FUof[B.jun[0]]:FUof[p]))];
+    const pays=t.pagos.map(([p,m])=>{
+      if(p==='jun') return `<li><span class="f">Jun</span><span>Parte de los 3 abonos consolidados de junio (01/06, 15/06 y 19/06)<div class="lk" style="margin-top:3px">${B.jun.map(id=>payLinks(RID[id])).join('')}</div></span><span class="m">${NF.format(m)}</span></li>`;
+      const r=RID[p];
+      return `<li><span class="f">${fdate(r.f)}</span><span>${esc(r.desc)}<div class="tit">Op. ${esc(r.op)} · ${FU[FUof[p]].n}${m!==r.amt?` · parte de un pago de ${S(r.amt)}`:''}</div><div class="lk" style="margin-top:3px">${payLinks(r)}</div></span><span class="m">${NF.format(m)}</span></li>`;
+    }).join('')+(post?`<li><span class="f">${fdate(B.post.f)}</span><span>Cuota 3 de 3, pagada después del corte<div class="tit">Figurará en el estado de cuenta de octubre</div></span><span class="m">${NF.format(B.post.m)}</span></li>`:'');
+    const fotos=t.fotos.length?`<div class="bh-th">${t.fotos.map(k=>{const f=B.fotos.find(x=>x.k===k);return `<button type="button" data-ph="${k}" aria-label="Ampliar: ${esc(f.c)}"><img loading="lazy" src="bh/fotos/${k}.jpg" alt="${esc(f.c)}"></button>`}).join('')}</div>`:'';
+    return `<article class="bh-card" data-t="${t.id}" style="--c:var(--cr-${t.c})">
+      <div class="bh-tags"><span class="bh-pill cr" style="background:var(--cr-${t.c})">${CR[t.c].l}</span><span class="bh-pill">${t.t.length===1?'Torre '+t.t:'Torres '+t.t}</span><span class="bh-pill">${SIS[t.s]}</span>${est}</div>
+      <h3>${esc(t.n)}</h3>
+      <div class="dt">${fdate(t.ini)} → ${fdate(t.fin)}${t.aprox?' · fechas aproximadas':''}</div>
+      <p>${esc(t.sus)}</p>
+      <div class="bh-money"><div>Costo<b>${NF.format(t.costo)}</b></div><div>Pagado al 30/09<b>${NF.format(pg)}</b></div><div>Origen<b style="font-family:var(--body);font-size:12px;line-height:1.3">${fus.map(f=>FU[f].n).join(' / ')}</b></div></div>
+      <div class="bh-prog" title="${N0.format(pct)}% pagado"><i style="width:${pct}%;background:var(--cr-${t.c})"></i>${post?`<i style="width:${100-pct}%;background:repeating-linear-gradient(135deg,var(--cr-${t.c}) 0 3px,transparent 3px 7px);opacity:.6"></i>`:''}</div>
+      ${t.docs.length?`<div class="bh-docs">${t.docs.map(docLink).join('')}</div>`:'<div class="bh-cnt">Sustento: sección 6.4 del informe de la empresa y cuadro de pagos de la Junta.</div>'}
+      ${fotos}
+      <details><summary>Pagos (${t.pagos.length+(post?1:0)})</summary><ul class="bh-pl">${pays}</ul></details>
+    </article>`;
+  }).join('');
+  $('bhCards').querySelectorAll('[data-ph]').forEach(b=>b.onclick=()=>openLb(b.dataset.ph,B.fotos.map(f=>f.k)));
+}
+$('bhFSis').innerHTML='<option value="">Todos</option>'+Object.entries(SIS).map(([k,v])=>`<option value="${k}">${v}</option>`).join('');
+$('bhFSis').onchange=e=>{st.sis=e.target.value;refresh()};
+$('bhFTor').onchange=e=>{st.tor=e.target.value;refresh()};
+let qt;$('bhFQ').oninput=e=>{clearTimeout(qt);qt=setTimeout(()=>{st.q=e.target.value;refresh()},160)};
+$('bhReset').onclick=reset;
+
+// ---------- gráfico mensual ----------
+let chart;
+function drawChart(){
+  if(!window.Chart) return;
+  Chart.defaults.font.family='IBM Plex Sans';
+  const MON=['2026-03','2026-04','2026-05','2026-06','2026-07','2026-08','2026-09'];
+  const keys=st.chv==='fu'?['ce','ord','rec']:CRK;
+  const val=(m,k)=>{let s=0;P.filter(r=>r.f.startsWith(m)).forEach(r=>{
+      if(st.chv==='fu'){if(r.fu===k)s+=r.amt}
+      else B.trab.forEach(t=>t.pagos.forEach(([p,a])=>{if(t.c!==k)return; if(p===r.id)s+=a; else if(p==='jun'&&B.jun.includes(r.id))s+=a*r.amt/juneTot}));
+    });return +s.toFixed(2)};
+  const col=k=>css(st.chv==='fu'?FU[k].v:'--cr-'+k);
+  let acc=0;const cum=MON.map(m=>(acc+=P.filter(r=>r.f.startsWith(m)).reduce((a,r)=>a+r.amt,0),+acc.toFixed(2)));
+  const ds=keys.map(k=>({type:'bar',label:st.chv==='fu'?FU[k].n:CR[k].l,data:MON.map(m=>val(m,k)),backgroundColor:col(k),borderColor:css('--surface'),borderWidth:{top:2},borderSkipped:false,maxBarThickness:58,stack:'s',yAxisID:'y',order:2}));
+  ds.push({type:'line',label:'Acumulado',data:cum,borderColor:css('--fg-2'),backgroundColor:css('--fg-2'),borderWidth:2,pointRadius:3,pointHoverRadius:5,tension:.25,yAxisID:'y2',order:1});
+  const g=css('--line'),t3=css('--fg-3');
+  if(chart) chart.destroy();
+  chart=new Chart($('bhChart'),{data:{labels:MON.map(m=>MES[+m.slice(5)].slice(0,3)),datasets:ds},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
+    plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>`${c.dataset.label}: ${S(c.parsed.y)}`,footer:it=>'Total del mes: '+S(it.filter(i=>i.dataset.type==='bar').reduce((a,i)=>a+i.parsed.y,0))}}},
+    scales:{x:{stacked:true,grid:{display:false},ticks:{color:t3}},y:{stacked:true,grid:{color:g},border:{display:false},ticks:{color:t3,callback:v=>N0.format(v/1000)+' k'},title:{display:true,text:'Pagado en el mes (S/)',color:t3}},
+      y2:{position:'right',grid:{display:false},border:{display:false},ticks:{color:t3,callback:v=>N0.format(v/1000)+' k'},title:{display:true,text:'Acumulado (S/)',color:t3},min:0}}}});
+  $('bhChLg').innerHTML=keys.map(k=>`<span><i style="background:var(${st.chv==='fu'?FU[k].v:'--cr-'+k})"></i>${st.chv==='fu'?FU[k].n:CR[k].l}</span>`).join('')+'<span><i style="height:2px;background:var(--fg-2)"></i>Acumulado</span>';
+}
+document.querySelectorAll('[data-bhv]').forEach(b=>b.onclick=()=>{st.chv=b.dataset.bhv;document.querySelectorAll('[data-bhv]').forEach(x=>x.setAttribute('aria-pressed',x===b));drawChart()});
+
+// ---------- libro de pagos ----------
+function ledger(){
+  const groups=st.grp==='mes'?[...new Set(P.map(r=>r.f.slice(0,7)))].map(m=>[MES[+m.slice(5)]+' 2026',P.filter(r=>r.f.startsWith(m))]):['ce','ord','rec'].map(k=>[FU[k].n,P.filter(r=>r.fu===k)]);
+  let h='<thead><tr><th>Fecha</th><th>Trabajo / descripción</th><th>Cuenta</th><th>Origen</th><th class="amt">Monto S/</th><th>Soporte</th></tr></thead><tbody>';
+  groups.forEach(([g,rs],gi)=>{
+    if(!rs.length) return;
+    const s=rs.reduce((a,r)=>a+r.amt,0);
+    h+=`<tr class="grp" data-g="${gi}"><td colspan="6"><span class="car">▾</span> ${esc(g)} <span class="cnt">${rs.length} pago${rs.length>1?'s':''} · ${S(s)} · ${N0.format(s/pagado*100)}%</span></td></tr>`;
+    rs.forEach(r=>{
+      const tn=r.tr.map(id=>TID[id].n);
+      h+=`<tr data-gi="${gi}"><td class="dt">${fdate(r.f)}</td><td><div class="d1">${esc(tn.length>1?'Abono consolidado: '+tn.length+' trabajos':tn[0])}</div><div class="d2">${esc(r.desc)} · Op. ${esc(r.op)}</div>${tn.length>1?`<div class="tit">${esc(tn.join(' · '))}</div>`:''}</td><td><span class="acc ${r.acc}">${r.acc==='CTE'?'Corriente':'Ahorros'}</span></td><td><span class="bh-pill" style="border-color:var(${FU[r.fu].v})"><i style="width:8px;height:8px;border-radius:2px;background:var(${FU[r.fu].v});display:inline-block"></i>${FU[r.fu].n}</span></td><td class="amt">${NF.format(r.amt)}</td><td><div class="lk">${payLinks(r)}</div></td></tr>`;
+    });
+    h+=`<tr class="subt" data-gi="${gi}"><td colspan="4">Subtotal ${esc(g)}</td><td class="amt">${NF.format(s)}</td><td></td></tr>`;
+  });
+  h+=`<tr class="grand"><td colspan="4">Total pagado a Asistencias Blue Hogar S.A.C. al 30/09/2026</td><td class="amt">${NF.format(pagado)}</td><td></td></tr></tbody>`;
+  $('bhLed').innerHTML=h;
+  $('bhLed').querySelectorAll('tr.grp').forEach(tr=>tr.onclick=()=>{tr.classList.toggle('closed');const c=tr.classList.contains('closed');$('bhLed').querySelectorAll(`tr[data-gi="${tr.dataset.g}"]`).forEach(x=>{if(!x.classList.contains('subt'))x.hidden=c})});
+  $('bhLedSub').textContent=`${P.length} pagos desde la cuenta corriente BCP · del ${fdate(P[0].f)} al ${fdate(P[P.length-1].f)}`;
+}
+document.querySelectorAll('[data-bhg]').forEach(b=>b.onclick=()=>{st.grp=b.dataset.bhg;document.querySelectorAll('[data-bhg]').forEach(x=>x.setAttribute('aria-pressed',x===b));ledger()});
+$('bhJunNote').textContent=`Los abonos del 01/06 (S/ 5,000.00), 15/06 (S/ 10,000.00) y 19/06 (S/ 9,334.80) suman ${S(juneTot)} y cancelaron en bloque los saldos de cinco trabajos: manifold Torre C (S/ 7,524.80), cisternas Torre C (S/ 7,840.00), pasantes (S/ 3,800.00), boyas (S/ 1,320.00) y fugas del sótano (S/ 3,850.00), según el cuadro de pagos de la Junta. Del mismo modo, el pago del 30/04 (S/ 24,100.00) canceló cinco trabajos de abril.`;
+
+// ---------- sin pago / cotizaciones / pendientes ----------
+$('bhSin').innerHTML=B.sincargo.map(z=>`<li><b>${esc(z.n)}</b><span class="dt">${esc(z.f)}</span><p>${esc(z.d)}</p><div class="bh-docs" style="grid-column:1/-1">${z.docs.map(docLink).join('')}${(z.fotos||[]).map(k=>`<button type="button" class="bh-doc" data-ph="${k}" style="cursor:zoom-in">${I_DOC}Ver foto</button>`).join('')}</div></li>`).join('');
+$('bhSin').querySelectorAll('[data-ph]').forEach(b=>b.onclick=()=>openLb(b.dataset.ph,B.fotos.map(f=>f.k)));
+$('bhCot').innerHTML=B.cotiz.map(c=>`<li><b>${esc(c.n)}</b><span class="dt">${c.m?S(c.m):'—'}</span><p><span class="bh-pill pe">${esc(c.e)}</span> <span class="dt" style="margin-left:6px">Fecha: ${esc(c.f)}</span></p></li>`).join('');
+$('bhPend').innerHTML='<thead><tr><th>Prioridad</th><th>Asunto</th><th>Qué falta</th></tr></thead><tbody>'+B.pend.map(p=>`<tr><td><span class="bh-pr ${p.p}">${p.p}</span></td><td style="font-weight:500;white-space:nowrap">${esc(p.n)}</td><td style="color:var(--fg-2)">${esc(p.d)}</td></tr>`).join('')+'</tbody>';
+
+// ---------- galería ----------
+let galG='';
+function gal(){
+  const gs=Object.keys(B.fgrp);
+  $('bhGalF').innerHTML=`<button type="button" class="bh-chip" data-gg="" aria-pressed="${galG===''}">Todas (${B.fotos.length})</button>`+gs.map(g=>`<button type="button" class="bh-chip" data-gg="${g}" aria-pressed="${galG===''||galG===g}">${esc(B.fgrp[g])}</button>`).join('');
+  $('bhGalF').querySelectorAll('[data-gg]').forEach(b=>b.onclick=()=>{galG=b.dataset.gg;gal()});
+  const fs=B.fotos.filter(f=>!galG||f.g===galG);
+  $('bhGal').innerHTML=fs.map(f=>`<figure data-ph="${f.k}" tabindex="0" role="button" aria-label="Ampliar: ${esc(f.c)}"><img loading="lazy" src="bh/fotos/${f.k}.jpg" alt="${esc(f.c)}"><figcaption>${esc(f.c)}<small>${esc(B.fgrp[f.g])}</small></figcaption></figure>`).join('');
+  $('bhGal').querySelectorAll('[data-ph]').forEach(el=>{const o=()=>openLb(el.dataset.ph,fs.map(f=>f.k));el.onclick=o;el.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();o()}}});
+}
+let lbList=[],lbI=0;
+function lbShow(){const f=B.fotos.find(x=>x.k===lbList[lbI]);$('bhLbImg').src=`bh/fotos/${f.k}.jpg`;$('bhLbImg').alt=f.c;$('bhLbC').textContent=`${f.c} · ${lbI+1}/${lbList.length}`}
+function openLb(k,list){lbList=list;lbI=Math.max(0,list.indexOf(k));lbShow();const d=$('bhLb');if(d.showModal)d.showModal();else d.setAttribute('open','')}
+$('bhLbP').onclick=()=>{lbI=(lbI-1+lbList.length)%lbList.length;lbShow()};
+$('bhLbN').onclick=()=>{lbI=(lbI+1)%lbList.length;lbShow()};
+$('bhLbX').onclick=()=>$('bhLb').close();
+$('bhLb').addEventListener('click',e=>{if(e.target===$('bhLb'))$('bhLb').close()});
+$('bhLb').addEventListener('keydown',e=>{if(e.key==='ArrowLeft')$('bhLbP').click();if(e.key==='ArrowRight')$('bhLbN').click()});
+
+// ---------- documentos ----------
+function docs(){
+  const rel=id=>B.trab.filter(t=>t.docs.includes(id)).map(t=>t.n).concat(B.sincargo.filter(z=>z.docs.includes(id)).map(z=>z.n));
+  $('bhDocSub').innerHTML=`Los ${Object.keys(B.docs).length} documentos de respaldo de los trabajos, citados en el informe de la empresa. Los ${docsLinked} enlaces a Drive se abrieron el ${B.verif} y cada uno corresponde al archivo indicado; los demás son documentos Word que el PDF cita sin enlace.`;
+  $('bhDocs').innerHTML='<thead><tr><th>Ref.</th><th>Documento</th><th>Tipo</th><th>Fecha</th><th>Trabajo relacionado</th><th>Enlace</th></tr></thead><tbody>'+
+   Object.entries(B.docs).map(([id,d])=>`<tr><td><code>${id}</code></td><td>${esc(d.t)}</td><td>${DK[d.k]}</td><td class="dt" style="font-family:var(--mono);font-size:12px;white-space:nowrap">${esc(d.f)}</td><td style="color:var(--fg-2);font-size:12.5px">${esc(rel(id).join(' · ')||'—')}</td><td>${d.u?`<a href="${esc(d.u)}" target="_blank" rel="noopener">Abrir</a> <span class="bh-ok">✓ verificado</span>`:'<span class="bh-na">Sin enlace (Word)</span>'}</td></tr>`).join('')+'</tbody>';
+}
+
+// ---------- cierre ----------
+function close(){
+  $('bhCloseP').innerHTML=`Entre marzo y setiembre se pagaron <b>${S(pagado)}</b> a Asistencias Blue Hogar, en ${P.length} operaciones bancarias. Cada una corresponde a un trabajo con recibo, informe o ambos, y la última cuota de la Torre A se pagó el ${fdate(B.post.f)}. Estos son los resultados:`;
+  const R=[
+    ['3','manifolds renovados','Torres A, B y C, con piezas de acero inoxidable AISI 316'],
+    ['6','cisternas impermeabilizadas','Dos por torre, con boyas, pasantes y válvulas nuevas'],
+    ['9','bombas de presión constante','Mantenimiento completo y 2 motores rebobinados en la Torre C'],
+    ['2','pozos de aguas residuales recuperados','Pozo N.º 1 con 3 bombas nuevas; pozo N.º 2 con bombas, sensores y alarma'],
+    ['3','fugas corregidas','Tuberías del piso 1 de la Torre C y 2 puntos de la red principal en el sótano'],
+  ];
+  $('bhRes').innerHTML=R.map(([n,t,s])=>`<div><b>${n}</b><h4>${t}</h4><span>${s}</span></div>`).join('');
+  const C=[
+    `Los ${P.length} pagos están en el estado de cuenta del BCP, con fecha y número de operación.`,
+    `Cada pago corresponde a un trabajo aprobado, con su recibo o informe técnico.`,
+    `Los manifolds de las Torres A y B se pagaron en cuotas, según cronogramas acordados.`,
+    `Las cotizaciones no aprobadas no se pagaron, como el mantenimiento de los 198 contómetros.`,
+    `La limpieza de contómetros se cobró en el recibo de cada propietario, no con la cuota extraordinaria.`,
+    `El informe técnico completo de la empresa está disponible para descarga en esta sección.`,
+  ];
+  $('bhChk').innerHTML=C.map(c=>`<li>${I_OK}<span>${c}</span></li>`).join('');
+}
+
+kpis(); refresh(); dist(); ledger(); gal(); docs(); close();
+window.BH_draw=function(){ if($('v-bh').offsetParent===null) return; drawChart(); };
+window.BH_draw();
+if(window.matchMedia) matchMedia('(prefers-color-scheme: dark)').addEventListener('change',()=>window.BH_draw());
+})();
+</script>
+
+</div>
+
 <script>
 (function(){
 const DATA=window.CPP_DATA;
@@ -543,8 +1525,10 @@ function render(){
 }
 function setTab(t){
   document.querySelectorAll('.tab').forEach(b=>b.setAttribute('aria-selected',b.dataset.t===t));
-  $('v-pagos').hidden=t!=='pagos'; $('v-dash').hidden=t!=='dash';
+  $('v-pagos').hidden=t!=='pagos'; $('v-dash').hidden=t!=='dash'; $('v-ce').hidden=t!=='ce'; $('v-bh').hidden=t!=='bh';
+  $('filters').hidden=(t==='ce'||t==='bh');
   if(t==='dash') drawAll();
+  window.CE_draw&&window.CE_draw(); window.BH_draw&&window.BH_draw();
   try{localStorage.setItem('cpp_tab',t)}catch(e){}
 }
 document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>setTab(b.dataset.t));
@@ -553,7 +1537,7 @@ $('fDesde').addEventListener('change',()=>{let v=$('fDesde').value||'2026-03-15'
 $('fHasta').addEventListener('change',()=>{let v=$('fHasta').value||'2026-09-30'; if(v>'2026-09-30')v='2026-09-30'; if(v<st.desde)v=st.desde; $('fHasta').value=v; st.hasta=v; render()});
 bind('fCta','cta');bind('fCat','cat');bind('fProv','prov');bind('fNeu','neu');
 let qt; $('fQ').addEventListener('input',()=>{clearTimeout(qt);qt=setTimeout(()=>{st.q=$('fQ').value;render()},180)});
-document.querySelectorAll('.chip').forEach(c=>c.onclick=()=>{
+document.querySelectorAll('#filters .chip').forEach(c=>c.onclick=()=>{
   const r=c.dataset.r;
   if(r==='all'){st.desde='2026-03-15';st.hasta='2026-09-30'}
   else{const m=String(r).padStart(2,'0');st.desde=r==='3'?'2026-03-15':`2026-${m}-01`;const x=new Date(2026,+r,0);st.hasta=`2026-${m}-${String(x.getDate()).padStart(2,'0')}`}
@@ -569,14 +1553,14 @@ $('fTop').onchange=drawMor; $('fMorSrc').onchange=drawMor;
 function curTheme(){const a=document.documentElement.getAttribute('data-theme');if(a)return a;return matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'}
 function syncThemeLbl(){$('themeLbl').textContent=curTheme()==='dark'?'Modo claro':'Modo oscuro'}
 try{const t=localStorage.getItem('cpp_theme');if(t)document.documentElement.setAttribute('data-theme',t)}catch(e){}
-$('themeBtn').onclick=()=>{const n=curTheme()==='dark'?'light':'dark';document.documentElement.setAttribute('data-theme',n);try{localStorage.setItem('cpp_theme',n)}catch(e){};syncThemeLbl();drawAll()};
+$('themeBtn').onclick=()=>{const n=curTheme()==='dark'?'light':'dark';document.documentElement.setAttribute('data-theme',n);try{localStorage.setItem('cpp_theme',n)}catch(e){};syncThemeLbl();drawAll();window.CE_draw&&window.CE_draw();window.BH_draw&&window.BH_draw()};
 matchMedia('(prefers-color-scheme: dark)').addEventListener('change',()=>{syncThemeLbl();drawAll()});
 syncThemeLbl();
 
 if(window.Chart){Chart.defaults.font.family='IBM Plex Sans';}
 render();
-let t0='pagos'; try{t0=localStorage.getItem('cpp_tab')||'pagos'}catch(e){} if(t0!=='dash') t0='pagos';
-if(location.hash==='#dashboard') t0='dash';
+let t0='pagos'; try{t0=localStorage.getItem('cpp_tab')||'pagos'}catch(e){} if(!['pagos','dash','ce','bh'].includes(t0)) t0='pagos';
+if(location.hash==='#dashboard') t0='dash'; if(location.hash==='#cuota-extraordinaria') t0='ce'; if(location.hash==='#blue-hogar') t0='bh';
 setTab(t0);
 })();
 </script>
